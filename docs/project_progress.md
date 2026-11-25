@@ -1,6 +1,6 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 0, Environment setup and Snowflake feasibility · **Status:** local setup done, Snowflake steps waiting on the account owner
+**Interview:** 2026-12-08 · **Current phase:** 0, Environment setup and Snowflake feasibility · **Status:** ✅ **Phase 0 complete** (2026-11-25). All Cortex capabilities verified on the account. Next is Phase 1.
 
 ## Account facts (from Snowsight, 2026-11-25)
 | Item | Value |
@@ -25,26 +25,58 @@
 | No secrets staged | `git add --dry-run .` lists only source files. `data/raw/`, `.env` and `.venv` confirmed ignored. |
 | Docs checked (2026-11-25) | Syntax and privileges for CREATE USER (TYPE=SERVICE), key-pair JWT, `USE AI FUNCTIONS`, semantic views, Analyst REST, Cortex Search, CREATE AGENT and `:run`, resource monitors |
 
-### Waiting on the account owner (not yet verified)
-1. Generate the key pair: `scripts/generate_keypair.py`.
-2. Run `sql/00_setup/01_account_setup.sql` in Snowsight as ACCOUNTADMIN.
-3. Create `.env` from `.env.example`.
+### Account setup (done by the account owner, 2026-11-25)
+1. Key pair generated with `scripts/generate_keypair.py`; private key stored outside the repo.
+2. `sql/00_setup/01_account_setup.sql` run in Snowsight as ACCOUNTADMIN.
+3. `.env` created locally (gitignored).
 
-Then Claude runs:
+### Snowflake verification (run by Claude, 2026-11-25)
+| Check | Result |
+|---|---|
+| `run_sql_file.py sql/00_setup/02_schemas.sql` as `SCC_SVC` / `SCC_DEV_ROLE` | ✅ 7 schemas created; key-pair auth works |
+| `check_snowflake.py` | ✅ role `SCC_DEV_ROLE`, warehouse `SCC_WH` (X-Small, 60s), region `AWS_US_WEST_2`, Snowflake 10.42.104, all expected grants incl. `SNOWFLAKE.CORTEX_USER` and `USE AI FUNCTIONS` |
+| `pytest -m snowflake` | ✅ 1 passed |
+| Resource monitor attached to `SCC_WH` | ✅ `SCC_WH_MONITOR`, confirmed as ACCOUNTADMIN. The dev role sees `null` because it lacks visibility of the monitor. |
 
-4. `run_sql_file.py sql/00_setup/02_schemas.sql`
-5. `check_snowflake.py`
-6. `smoke_cortex.py --yes` (small Cortex cost)
-
-### Cortex feasibility: per current docs, not yet tested on this account
-| Capability | Docs say | Tested on account? |
+### Cortex feasibility: `smoke_cortex.py --yes`, tested on this account
+| Capability | Result | Evidence |
 |---|---|---|
-| AI_COMPLETE | Native in us-west-2 (e.g. `llama3.1-8b`); frontier models via cross-region | ⏳ |
-| Semantic views | `CREATE SEMANTIC VIEW`; some sub-features in preview | ⏳ |
-| Cortex Analyst | Native in AWS us-west-2; REST `/api/v2/cortex/analyst/message` | ⏳ |
-| Cortex Search | `CREATE CORTEX SEARCH SERVICE`; owner's-rights queries | ⏳ |
-| Cortex Agents | `CREATE AGENT … FROM SPECIFICATION`; REST `…/agents/{name}:run`; not supported from SiS warehouse runtime | ⏳ |
-| Trial restrictions | Not stated in the docs we read | ⏳ To be found by testing |
+| Semantic view (create + `SEMANTIC_VIEW()` query) | ✅ PASS | Results matched expected values exactly |
+| Cortex Analyst REST (`semantic_view`) | ✅ PASS | Generated `SELECT * FROM SEMANTIC_VIEW(... DIMENSIONS region METRICS late_order_count)`, which executed correctly |
+| AI_COMPLETE (`llama3.1-8b`, `claude-sonnet-4-5`) | ❌ BLOCKED | `399258: AI function ... is not available for trial accounts` |
+| Cortex Search (create service) | ❌ BLOCKED | `399258: AI function EMBED_TEXT_768 is not available for trial accounts` |
+| Cortex Agents: `CREATE AGENT` | ✅ object created | — |
+| Cortex Agents: `:run` over REST (Analyst tool only) | ❌ BLOCKED | `HTTP 400, code 399504: Access denied for trial accounts` |
+| Cleanup | ✅ all sandbox objects dropped | — |
+
+**Root cause (Snowflake docs, [Trial accounts](https://docs.snowflake.com/en/user-guide/admin-trial-account)):** "AI features are disabled by default on self-service trial accounts. To enable them, add a credit card to the account." The same page says adding a card "doesn't upgrade the trial to a paid account or end the trial period", and that AI features consume the free credits.
+
+**Resolution:** the account owner added a credit card (Admin → Billing → Payment method). The trial was **not** upgraded. A fallback stack was not adopted (ADR-001).
+
+### Re-run after adding the card: `smoke_cortex.py --yes` (2026-11-25)
+| Probe | Result |
+|---|---|
+| AI_COMPLETE `llama3.1-8b` (native) | ✅ PASS |
+| AI_COMPLETE `claude-sonnet-4-5` (cross-region) | ✅ PASS |
+| Semantic view | ✅ PASS (exact expected values) |
+| Cortex Analyst REST | ✅ PASS (SQL executed, correct rows) |
+| Cortex Search (create + `SEARCH_PREVIEW`) | ✅ PASS (correct top hit) |
+| Cortex Agent REST, both tools, non-streaming | ✅ PASS. Answer: "2 late orders" in WEST; corrective action plan "within 30 days of a nonconformance". Both `orders_analyst` and `policy_search` appear in the response. |
+| Cleanup | ✅ all sandbox objects dropped |
+
+Observed response shape for agent `:run` (non-streaming): top-level keys `content, metadata, role, schema_version, sequence_number, status`. This will be used to build the typed client in Phase 4.
+
+### Phase 0 acceptance criteria
+| Criterion | Status |
+|---|---|
+| Python environment works | ✅ |
+| Required libraries import | ✅ |
+| Snowflake connectivity tested | ✅ |
+| Cortex permissions and availability understood | ✅ verified by live probes |
+| No credentials exposed | ✅ key outside repo, `.env` ignored, scan clean |
+
+**Resource monitor:** ✅ confirmed by the account owner as ACCOUNTADMIN: `SCC_WH.resource_monitor = SCC_WH_MONITOR`. The dev role sees `null` only because it has no privileges on the monitor.
+**Still open (minor):** measured smoke-test spend is pending, because `ACCOUNT_USAGE` lags by up to a few hours. It will be recorded at the start of Phase 1.
 
 ### Expected costs (to be measured, not estimated)
 - Warehouse: X-Small at 1 credit/hour while running, 60-second auto-suspend, 25-credit monthly monitor.
@@ -58,7 +90,7 @@ Then Claude runs:
 `docs/{project_progress,architecture_decisions,data_sources}.md`
 
 ## Blockers
-- None technical. Snowflake verification waits on the three account-owner steps above.
+- **B-001 (resolved 2026-11-25):** The trial account disabled AI features (errors `399258` and `399504`). Resolved by adding a credit card. All probes now pass.
 
 ## Remaining phases (plan)
 1. Data ingestion: profile DataCo, Bronze → Silver → Gold, reconciliation tests

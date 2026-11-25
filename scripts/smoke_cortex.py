@@ -153,29 +153,36 @@ def probe_search(conn: SnowflakeConnection, s: SnowflakeSettings) -> str:
     return "search service created; top hit for 'corrective action deadline' is DOC-1"
 
 
-AGENT_SPEC = """
+def build_agent_spec(s: SnowflakeSettings, include_search: bool) -> str:
+    """Minimal agent spec; the search tool is optional so Analyst-only orchestration can be tested."""
+    tools = """
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: orders_analyst
+      description: "Counts of sample orders and late orders by region.\""""
+    resources = f"""
+  orders_analyst:
+    semantic_view: "{fq(s, "SMOKE_SV")}"
+    execution_environment:
+      type: warehouse
+      warehouse: "{s.warehouse}\""""
+    if include_search:
+        tools += """
+  - tool_spec:
+      type: cortex_search
+      name: policy_search
+      description: "Searches sample supplier policy text.\""""
+        resources += f"""
+  policy_search:
+    search_service: "{fq(s, "SMOKE_SEARCH")}"
+    max_results: 2"""
+    return f"""
 models:
   orchestration: auto
 instructions:
   response: "Answer briefly. Use the analyst tool for numbers and the search tool for policy text."
-tools:
-  - tool_spec:
-      type: cortex_analyst_text_to_sql
-      name: orders_analyst
-      description: "Counts of sample orders and late orders by region."
-  - tool_spec:
-      type: cortex_search
-      name: policy_search
-      description: "Searches sample supplier policy text."
-tool_resources:
-  orders_analyst:
-    semantic_view: "{sv}"
-    execution_environment:
-      type: warehouse
-      warehouse: "{wh}"
-  policy_search:
-    search_service: "{svc}"
-    max_results: 2
+tools:{tools}
+tool_resources:{resources}
 """
 
 
@@ -192,16 +199,20 @@ def _collect(obj: Any, key: str, out: list[Any]) -> list[Any]:
     return out
 
 
-def probe_agent(conn: SnowflakeConnection, rest: SnowflakeRestClient, s: SnowflakeSettings) -> str:
-    spec = AGENT_SPEC.format(sv=fq(s, "SMOKE_SV"), wh=s.warehouse, svc=fq(s, "SMOKE_SEARCH"))
+def probe_agent(
+    conn: SnowflakeConnection,
+    rest: SnowflakeRestClient,
+    s: SnowflakeSettings,
+    include_search: bool = True,
+) -> str:
+    spec = build_agent_spec(s, include_search)
     conn.cursor().execute(
         f"CREATE OR REPLACE AGENT {fq(s, 'SMOKE_AGENT')} "
         f"COMMENT = 'Phase 0 smoke test - safe to drop' FROM SPECIFICATION $${spec}$$"
     )
-    question = (
-        "How many late orders are in the WEST region, and what is the deadline for a "
-        "corrective action plan?"
-    )
+    question = "How many late orders are in the WEST region?"
+    if include_search:
+        question += " And what is the deadline for a corrective action plan?"
     resp = rest.post(
         f"/api/v2/databases/{s.database}/schemas/{SCHEMA}/agents/SMOKE_AGENT:run",
         {
@@ -241,6 +252,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--yes", action="store_true", help="confirm you accept small Cortex costs")
     parser.add_argument("--keep", action="store_true", help="keep sandbox objects for inspection")
+    parser.add_argument(
+        "--skip-complete", action="store_true", help="skip AI_COMPLETE probes (already known)"
+    )
     args = parser.parse_args()
     if not args.yes:
         print(
@@ -253,18 +267,26 @@ def main() -> int:
     probe = Probe()
     with session(s, schema=SCHEMA) as conn:
         try:
-            probe.run("AI_COMPLETE (native model)", lambda: probe_ai_complete(conn, "llama3.1-8b"))
-            probe.run(
-                "AI_COMPLETE (frontier, cross-region)",
-                lambda: probe_ai_complete(conn, FRONTIER_MODEL),
-            )
+            if not args.skip_complete:
+                probe.run(
+                    "AI_COMPLETE (native model)", lambda: probe_ai_complete(conn, "llama3.1-8b")
+                )
+                probe.run(
+                    "AI_COMPLETE (frontier, cross-region)",
+                    lambda: probe_ai_complete(conn, FRONTIER_MODEL),
+                )
             setup_sandbox_data(conn, s)
             sv_ok = probe.run("Semantic view", lambda: probe_semantic_view(conn, s))
             if sv_ok:
                 probe.run("Cortex Analyst REST", lambda: probe_analyst(conn, rest, s))
             search_ok = probe.run("Cortex Search", lambda: probe_search(conn, s))
             if sv_ok and search_ok:
-                probe.run("Cortex Agent REST", lambda: probe_agent(conn, rest, s))
+                probe.run("Cortex Agent REST (both tools)", lambda: probe_agent(conn, rest, s))
+            elif sv_ok:
+                probe.run(
+                    "Cortex Agent REST (Analyst tool only)",
+                    lambda: probe_agent(conn, rest, s, include_search=False),
+                )
         finally:
             if not args.keep:
                 print("\n--- cleanup")

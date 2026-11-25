@@ -11,6 +11,8 @@ Short records of decisions that matter. Each one covers: context, the decision, 
 **Alternatives:** LangChain/LangGraph with an external vector DB and an external LLM.
 **Tradeoffs:** Ties the project to one vendor and to Snowflake's billing. In return we get governance (RBAC, lineage) in one place, and the project matches the team's actual stack.
 
+**Update (2026-11-25):** The smoke test showed that the self-service trial blocks AI functions, Cortex Search embeddings and Agent runs (`399258` and `399504`), while semantic views and Cortex Analyst work. Snowflake docs say adding a credit card enables AI features without ending the trial. Decision: unblock via the payment method, keep Cortex as the platform, and do **not** switch to the fallback.
+
 ## ADR-002: The app runs locally and calls Cortex Agents over REST
 **Status:** Accepted
 **Context:** Snowflake docs (checked 2026-11-25) say the Agents API is not supported from Streamlit in Snowflake on warehouse runtime.
