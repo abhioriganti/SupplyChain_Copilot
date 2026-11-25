@@ -94,6 +94,26 @@ It changes neither row count nor values. Eligibility, late rate, revenue choice 
 **Why not:** It would create two places where the business logic is defined, and those would drift apart. Governed metrics should have one home.
 **Tradeoffs:** The SQL layer must re-establish the grain, but the Phase 1 checks already prove that it's safe.
 
+## ADR-014: No separate FACT_SHIPMENTS; FACT_ORDERS is the shipment fact
+**Status:** Accepted (2026-11-25)
+**Context:** The suggested model listed FACT_ORDERS, FACT_ORDER_LINES and FACT_SHIPMENTS.
+**Decision:** Shipment grain is identical to order grain in this source: there is one shipment per order, and that was tested. A FACT_SHIPMENTS table would duplicate FACT_ORDERS row for row. In a semantic layer, two tables at the same grain create two join paths and two places to define "late rate", which is exactly the inconsistency a governed layer exists to prevent. The shipment attributes and flags therefore live on FACT_ORDERS.
+**When to revisit:** A source with split shipments or carrier events would need a real FACT_SHIPMENTS at its own grain.
+
+## ADR-015: Governed revenue = net sales of non-canceled, non-fraud orders
+**Status:** Accepted (2026-11-25; the user agreed to `net_sales` before Phase 2)
+**Decision:** `TOTAL_REVENUE = SUM(NET_SALES) WHERE ORDER_STATUS NOT IN ('CANCELED','SUSPECTED_FRAUD')`, where `NET_SALES` is after discount.
+**Alternatives:**
+- Gross sales, before discount, which overstates realised sales.
+- All statuses, which counts canceled and fraud orders.
+- Completed or closed orders only, which would drop pending, processing and on-hold orders that are booked.
+**Tradeoffs:** It's a booking view of revenue, not recognised revenue, and the source has no invoicing data. The alternatives stay derivable from the facts for anyone who needs them.
+
+## ADR-016: KPI rates are computed as FLOAT
+**Status:** Accepted
+**Context:** Snowflake integer division and `AVG` over integers return `NUMBER` with 6 decimal places (e.g. `0.573127`).
+**Decision:** Cast to FLOAT inside the views so governed values aren't silently rounded. Rounding happens at presentation.
+
 ## ADR-013: Parse failures abort; source quirks are flagged
 **Status:** Accepted
 **Decision:**

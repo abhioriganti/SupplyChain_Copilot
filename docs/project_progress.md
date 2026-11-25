@@ -1,6 +1,52 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 1, Data acquisition, profiling and cleaning · **Status:** ✅ **Phase 1 complete** (2026-11-25). Next is Phase 2 (Snowflake Bronze/Silver/Gold + semantic view).
+**Interview:** 2026-12-08 · **Current phase:** 2, Snowflake Bronze/Silver/Gold · **Status:** ✅ **Phase 2 complete** (2026-11-25). Next is Phase 3.
+
+## Phase 2: Snowflake Bronze, Silver and Gold (2026-11-25)
+
+**Database:** existing `SCC_DB` (BRONZE, SILVER, GOLD, APP schemas from Phase 0), not a new `SUPPLYCHAIN_COPILOT` database. This reuses the approved roles, grants and warehouse.
+
+### Build order (reproducible)
+```powershell
+.venv\Scripts\python scripts\run_sql_file.py sql\10_bronze\01_bronze_tables.sql
+.venv\Scripts\python -m supplychain_copilot.warehouse.load_bronze
+.venv\Scripts\python scripts\run_sql_file.py sql\20_silver\01_silver_order_lines.sql
+.venv\Scripts\python scripts\run_sql_file.py sql\30_gold\01_gold_model.sql
+.venv\Scripts\python scripts\run_sql_file.py sql\30_gold\02_kpi_views.sql
+.venv\Scripts\python scripts\run_sql_tests.py sql\tests\test_phase2_model.sql
+.venv\Scripts\python -m supplychain_copilot.warehouse.reconcile
+```
+
+### Completed and verified
+| Item | Evidence |
+|---|---|
+| Bronze load | `write_pandas` → `BRONZE.DATACO_ORDER_LINES`. File rows = loaded rows = table rows = **180,519**, recorded in `BRONZE.LOAD_AUDIT`. Append-only with `LOAD_ID` and `INGESTED_AT_UTC`. |
+| Bronze fidelity | Spot check against the Parquet: timestamp min/max, total net sales 33,054,402.38, 65,752 orders, 9,737 DQ flags, a sampled row, and accented text (`São Paulo`, `Ústí nad Labem`) all identical |
+| Silver | `SILVER.ORDER_LINES` from the latest successful load; dedup by `ORDER_ITEM_ID` (0 removed, logged in `SILVER_BUILD_LOG`); derived date, month, delay and cancel flags; no imputation |
+| Gold | `DIM_PRODUCTS` (118), `DIM_REGIONS` (23), `FACT_ORDERS` (65,752 = shipments), `FACT_ORDER_LINES` (180,519). Grain is stated in every table comment. PK/FK declared (informational) and tested. |
+| KPI views | `V_KPI_OVERALL`, `V_KPI_BY_REGION`, `V_KPI_BY_SHIPPING_MODE`, `V_KPI_BY_MONTH` (the last includes `MARKETS_ACTIVE` and `MARKET_LIST`) |
+| SQL tests | `sql/tests/test_phase2_model.sql`: **38 of 38 pass** (Bronze 2, Silver 8, Gold 27, governance 1). Results persisted to `APP.DQ_TEST_RESULTS`. |
+| Independent reconciliation | pandas from the Parquet against the Snowflake views: **521 of 521 comparisons match** (overall, 23 regions, 4 modes, 37 months) |
+| pytest | **39 passed** with live Snowflake tests on; 36 passed and 3 skipped without (as in CI). `ruff` clean. |
+
+### Headline values (governed; DataCo public sample, not Worthington data)
+Distinct orders **65,752** · order lines **180,519** · revenue **31,644,665.08** · eligible shipments **62,897** · late **36,048** · late rate **57.31%** · on-time rate **42.69%** · avg actual days **3.50** · avg days late **1.62**
+
+### Key findings
+1. **Shipping mode, not region, separates late from on-time:** First Class 100% late (always 2 days against 1 scheduled), Second Class 80%, Same Day 48%, Standard 40%. Region late rates span only 52.6–60.0%. This is descriptive, not causal.
+2. **Fan-out risk is real:** summing order totals after a join to lines gives 3.49× the true revenue. The semantic view must encode the grains (Phase 3).
+3. The line-grain late-rate error is small on this data (0.02 pp), but including canceled shipments in the denominator moves the rate by 2.49 pp.
+
+### Decisions
+ADR-014 (no FACT_SHIPMENTS), ADR-015 (revenue definition), ADR-016 (FLOAT rates).
+
+### Limitations
+- PK/FK constraints aren't enforced by Snowflake; integrity relies on the SQL test suite, which must run after every build.
+- Revenue is booked (status-based), not recognised revenue; the source has no invoicing data.
+- The build is a sequence of commands, not an orchestrated DAG. That's adequate for a single static source.
+
+### Files (Phase 2)
+`sql/10_bronze/01_bronze_tables.sql`, `sql/20_silver/01_silver_order_lines.sql`, `sql/30_gold/{01_gold_model,02_kpi_views}.sql`, `sql/tests/test_phase2_model.sql`, `src/supplychain_copilot/warehouse/{__init__,load_bronze,sql_tests,reconcile}.py`, `scripts/run_sql_tests.py`, `tests/test_warehouse.py`, `docs/{metric_definitions,reconciliation_report}.md`, updated `docs/{architecture_decisions,project_progress}.md`
 
 ## Phase 1: data acquisition, profiling and cleaning (2026-11-25)
 
