@@ -1,0 +1,47 @@
+# --- Secrets: never commit ---
+.env
+.env.*
+!.env.example
+*.p8
+*.pem
+*.key
+*.pub
+rsa_key*
+connections.toml
+.snowflake/
+.streamlit/secrets.toml
+*credentials*
+*secret*
+!**/test_*secret*.py
+
+# --- Data: third-party files, large; tracked via docs/data_sources.md instead ---
+data/raw/
+data/interim/
+data/processed/
+*.csv
+*.parquet
+*.pdf
+
+# --- Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Logs / local output ---
+logs/
+*.log
+outputs/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

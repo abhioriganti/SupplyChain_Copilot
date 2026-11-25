@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "supplychain-copilot"
+version = "0.1.0"
+description = "Enterprise AI agent for supply-chain analytics and supplier knowledge retrieval on Snowflake Cortex (portfolio project)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "snowflake-connector-python>=3.12,<5",
+    "python-dotenv>=1.0,<2",
+    "cryptography>=42",
+    "PyJWT>=2.8,<3",
+    "requests>=2.31,<3",
+    "pandas>=2.2,<3",
+    "streamlit>=1.40,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "snowflake: integration test that needs a live Snowflake connection (skipped unless SCC_RUN_SNOWFLAKE_TESTS=1)",
+]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+ignore = [
+    "S101",  # asserts are fine in tests
+    "E501",  # line length is handled by `ruff format`; long strings/SQL are left intact
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
+"scripts/*" = ["S608"]  # identifiers come from validated config, not user input
