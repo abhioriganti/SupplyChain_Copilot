@@ -68,9 +68,37 @@ Short records of decisions that matter. Each one covers: context, the decision, 
 - Scanned PDFs would need OCR, but our three documents contain real text.
 
 ## ADR-008: Shipments modelled at order grain
-**Status:** Proposed. It will be confirmed or rejected by the Phase 1 data profile.
-**Context:** DataCo appears to have one row per order item, with the shipping fields repeated on every line and no shipment ID.
-**Decision:** Derive one shipment per order, but only for orders whose shipping fields are consistent across all their lines. Delivery KPIs are computed at order grain so that orders with many lines aren't counted more than once.
+**Status:** Accepted (2026-11-25, confirmed by the Phase 1 profile)
+**Context:** DataCo has one row per order line (180,519 lines, 65,752 orders) and no shipment ID.
+**Evidence:** 0 of 65,752 orders have differing values across their lines for any shipping attribute: dates, actual and scheduled days, delivery status, late flag, shipping mode and destination. The pipeline enforces this as an error-level check (`order_attributes_consistent_across_lines`), so a future source change would fail loudly.
+**Decision:** One shipment per order. Delivery KPIs are computed over distinct orders and never over lines. A line-level late rate would weight a 5-line order 5× and is wrong.
+**Tradeoffs:** Split shipments can't be represented, but the source has no such information.
+
+## ADR-011: Time trends are confounded by market rotation
+**Status:** Accepted (design constraint)
+**Evidence:** 26 of 37 months contain orders from a single market, and the dataset cycles LATAM → Europe → Pacific Asia → USCA → mixed → LATAM → Europe → Pacific Asia. See profiling_report §8.
+**Decision:** No rows are altered or removed. The semantic layer will document it, and the agent's instructions will require a caveat on any month-over-month question: the trend reflects market composition. Comparisons across regions or markets over the full period remain valid.
+**Why it matters:** An assistant that reported "late deliveries improved in July 2016" would be reporting a change in the data's market mix, not a real operational change. Catching this during profiling is the point of profiling before modelling.
+
+## ADR-012: Python sanitises; Snowflake SQL owns metric logic
+**Status:** Accepted
+**Decision:** The Python pipeline only:
+- verifies the source hash
+- drops PII and duplicate columns
+- renames and types the columns
+- normalises whitespace
+- adds lineage and DQ flags
+- validates
+It changes neither row count nor values. Eligibility, late rate, revenue choice and grain derivation (Silver and Gold) live in versioned Snowflake SQL and the semantic view.
+**Alternatives:** Build the orders and products tables in pandas.
+**Why not:** It would create two places where the business logic is defined, and those would drift apart. Governed metrics should have one home.
+**Tradeoffs:** The SQL layer must re-establish the grain, but the Phase 1 checks already prove that it's safe.
+
+## ADR-013: Parse failures abort; source quirks are flagged
+**Status:** Accepted
+**Decision:**
+- Any unparseable number or date, an unknown category value, a duplicate key or a broken identity **aborts** the run with a message naming the failing column. Nothing is silently coerced or dropped.
+- Known, explained quirks are kept and flagged as warnings: Same Day timestamps, canceled-but-late lines, negative profit, and a category name that isn't unique.
 
 ## ADR-009: Document access control in Cortex Search
 **Status:** Accepted (design constraint)

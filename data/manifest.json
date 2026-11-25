@@ -1,0 +1,46 @@
+{
+  "dataco": {
+    "description": "DataCo Smart Supply Chain for Big Data Analysis (public historical retail/e-commerce sample data; NOT Worthington data)",
+    "landing_page": "https://data.mendeley.com/datasets/8gx2fvg2k6/5",
+    "license": "CC BY 4.0",
+    "retrieved": "2026-11-25",
+    "files": {
+      "DataCoSupplyChainDataset.csv": {
+        "path": "data/raw/dataco/DataCoSupplyChainDataset.csv",
+        "bytes": 95910149,
+        "sha256": "fa6d022ed437155e1a2f0378710602848703c8a7f203f7ff5d77805bf8480aa6",
+        "encoding": "cp1252"
+      },
+      "DescriptionDataCoSupplyChain.csv": {
+        "path": "data/raw/dataco/DescriptionDataCoSupplyChain.csv",
+        "bytes": 3444,
+        "sha256": "9828e34669bd6d77e3b4463364cc44a5d52446b5e246fc258758cfe592566c4b",
+        "encoding": "cp1252"
+      }
+    }
+  },
+  "documents": {
+    "description": "Public documents for retrieval (Phase 3)",
+    "retrieved": "2026-11-25",
+    "files": {
+      "supplier-quality-assurance-manual_102325.pdf": {
+        "path": "data/raw/documents/supplier-quality-assurance-manual_102325.pdf",
+        "url": "https://www.worthingtonenterprises.com/docs/default-source/default-document-library/misc.-support-docs/supplier-quality-assurance-manual_102325.pdf",
+        "bytes": 1497410,
+        "sha256": "167e660c6eb4f3787deba7661e70594d089aaa8ed7e93e9d5665cb3bf16879b3"
+      },
+      "supplier-code-of-conduct_06162025.pdf": {
+        "path": "data/raw/documents/supplier-code-of-conduct_06162025.pdf",
+        "url": "https://www.worthingtonenterprises.com/docs/default-source/default-document-library/misc.-support-docs/supplier-code-of-conduct_06162025.pdf",
+        "bytes": 1165115,
+        "sha256": "bdbba13d91595eadb9f929bcae73c43415c6b706c55a4b23ac00cd00d50addbd"
+      },
+      "2026_annual_report.pdf": {
+        "path": "data/raw/documents/2026_annual_report.pdf",
+        "url": "https://www.sec.gov/Archives/edgar/data/108516/000119312526348735/2026_annual_report.pdf",
+        "bytes": 1247244,
+        "sha256": "a02b4433da6daf1486c1e1ee71d11ba8cc192289a35e7bc6e68cc30ec146b68d"
+      }
+    }
+  }
+}

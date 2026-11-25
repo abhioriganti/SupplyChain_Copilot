@@ -1,6 +1,40 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 0, Environment setup and Snowflake feasibility · **Status:** ✅ **Phase 0 complete** (2026-11-25). All Cortex capabilities verified on the account. Next is Phase 1.
+**Interview:** 2026-12-08 · **Current phase:** 1, Data acquisition, profiling and cleaning · **Status:** ✅ **Phase 1 complete** (2026-11-25). Next is Phase 2 (Snowflake Bronze/Silver/Gold + semantic view).
+
+## Phase 1: data acquisition, profiling and cleaning (2026-11-25)
+
+### Completed and verified
+| Task | Evidence |
+|---|---|
+| Acquisition | Manual Mendeley download, documented in `docs/data_sources.md`. `download_data.py` verifies all 5 files against SHA-256 values in `data/manifest.json` → all OK. |
+| Encoding, columns, rows | cp1252 (UTF-8 decode fails; C1 bytes 0x8a/0x8e/0x92 present), CRLF, 53 columns, **180,519 rows** |
+| Orders vs lines | **65,752 distinct orders**, 180,519 distinct order lines, 1–5 lines per order (mean 2.75), 20,652 customers, 118 products |
+| Date range | Orders 2015-01-01 → 2018-01-31 (37 months). 100% of dates parse. No shipment precedes its order. |
+| Duplicates | 0 exact duplicate rows, and 0 duplicates ignoring `Order Item Id` |
+| Missing values | Product Description 100% and Order Zipcode 86.24% (both dropped); Customer Lname 8 and Customer Zipcode 3 (both dropped as PII). No other empty values. |
+| Grain | All 16 order-level attributes are constant within every order → ADR-008 **accepted**. `Order Profit Per Order` is line-level (misnamed). Department is a product attribute. |
+| Late / cancel semantics | `late_delivery_risk=1` ⇔ 'Late delivery'. For non-canceled lines, late ⇔ actual > scheduled days. 'Shipping canceled' ⇔ order_status CANCELED or SUSPECTED_FRAUD (7,754 lines, 2,855 orders). |
+| Sensitive fields | Email, password, names, street, zip, customer geo and lat/long all dropped. Tests assert they are absent. |
+| Cleaning | 32 kept columns renamed to snake_case and typed; whitespace normalised (distinct counts unchanged); lineage + `dq_ship_ts_mismatch` added; row count preserved |
+| Validation | **26 error checks pass**, 4 warnings (known quirks): Same Day ship timestamps (9,737 lines), canceled-but-late days (4,423), negative profit (33,784), "Electronics" → 2 category ids |
+| Export | `data/processed/dataco_order_lines.parquet` (7.6 MB) + `dataco_validation.json`, both gitignored |
+| Docs | `docs/profiling_report.md` (generated from data), `docs/data_dictionary.md`, `docs/data_sources.md`, ADR-008 accepted, ADR-011 to ADR-013 added |
+| Tests | `pytest` → **33 passed, 1 skipped**: 21 new ingestion tests (16 fixture-based, 5 on the real file). `ruff check .` → clean |
+
+### Key findings for later phases
+1. **Market rotation (ADR-011):** 26 of 37 months contain one market only, so monthly trends are confounded with market. The agent must caveat trend questions.
+2. **Same Day timestamps** are always order + 12h. Durations come from `days_shipping_actual` only.
+3. **Canceled shipments** must be excluded from delivery KPIs; 4,423 canceled lines show actual > scheduled days.
+4. **Revenue choice** for Phase 2: `net_sales` (after discount) or `gross_sales`. Both identities are verified at 100%.
+5. **No supplier or manufacturing fields exist.** The agent must not imply supplier attribution from this data.
+
+### Not done / limitations
+- Automated download wasn't implemented (Mendeley is a browser download page). It's a documented manual step with hash verification.
+- Phase 0 Cortex spend is still unmeasured: `SCC_DEV_ROLE` has no access to `SNOWFLAKE.ACCOUNT_USAGE` (by design). It needs one query run as ACCOUNTADMIN.
+
+### Files (Phase 1)
+`data/manifest.json`, `src/supplychain_copilot/ingestion/{__init__,schema,download_data,clean_orders,profile_data}.py`, `tests/test_ingestion.py`, `docs/{profiling_report,data_dictionary}.md`, updated `docs/{data_sources,architecture_decisions,project_progress}.md`
 
 ## Account facts (from Snowsight, 2026-11-25)
 | Item | Value |
