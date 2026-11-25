@@ -31,7 +31,21 @@
 
 ### Not done / limitations
 - Automated download wasn't implemented (Mendeley is a browser download page). It's a documented manual step with hash verification.
-- Phase 0 Cortex spend is still unmeasured: `SCC_DEV_ROLE` has no access to `SNOWFLAKE.ACCOUNT_USAGE` (by design). It needs one query run as ACCOUNTADMIN.
+- ~~Phase 0 Cortex spend unmeasured~~. Measured below.
+
+### Measured credit usage through end of Phase 1
+`SNOWFLAKE.ACCOUNT_USAGE.METERING_HISTORY`, `START_TIME >= 2026-11-25`, run by the account owner as ACCOUNTADMIN:
+
+| Service type | Credits |
+|---|---|
+| WAREHOUSE_METERING | 0.2186 |
+| AI_SERVICES | 0.2010 |
+| CORTEX_AGENTS | 0.1065 |
+| AI_FUNCTIONS | 0.0001 |
+| PIPE, TELEMETRY_DATA_INGEST, AUTO_CLUSTERING | 0.0000 |
+| **Sum of rows** | **0.5262** |
+
+This covers both smoke-test runs, all connectivity checks and schema creation. The view lags by up to a few hours, so very recent activity may be missing. Whether `CORTEX_AGENTS` is also counted inside `AI_SERVICES` hasn't been verified, so the sum is an upper bound.
 
 ### Files (Phase 1)
 `data/manifest.json`, `src/supplychain_copilot/ingestion/{__init__,schema,download_data,clean_orders,profile_data}.py`, `tests/test_ingestion.py`, `docs/{profiling_report,data_dictionary}.md`, updated `docs/{data_sources,architecture_decisions,project_progress}.md`
