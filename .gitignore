@@ -13,6 +13,7 @@ connections.toml
 *credentials*
 *secret*
 !**/test_*secret*.py
+!scripts/check_secrets.py
 
 # --- Data: third-party files, large; tracked via docs/data_sources.md instead ---
 data/raw/

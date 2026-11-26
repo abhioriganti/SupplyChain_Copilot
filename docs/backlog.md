@@ -1,0 +1,69 @@
+# Backlog: known limitations and suggested improvements
+
+This is a consolidated list from Phases 0–8, so the work can be picked up later. The details and evidence for each item are in `docs/project_progress.md`, `docs/architecture_decisions.md` and the phase reports.
+
+## State at end of Phase 8 (2026-11-26)
+
+| Area | Status |
+|---|---|
+| Data | DataCo loaded through Bronze, Silver and Gold. 38 SQL tests; 521/521 values reconcile independently. |
+| Semantic view | `SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV`, now with a quarter dimension. Matches Gold on 9/9 checks; Analyst passes 9/9 NL tests. |
+| Documents | 152 chunks; 13 SQL tests pass; every word in every chunk verified to appear on its cited page |
+| Search | `SCC_DB.AI.SUPPLIER_DOCS_SEARCH`: hit@1 96.7%, hit@5 100%, MRR 0.983 |
+| Agent | `SCC_DB.AI.SUPPLY_CHAIN_COPILOT`, runs as the read-only `SCC_APP_SVC` user. Evaluation run 3: 34/34. |
+| App | Streamlit with streaming, session cache, citations, charts and feedback |
+| Ops | Request log and monitoring view; CI with secret scan, Ruff and pytest |
+
+**Before the demo:**
+- Make sure the search service is RESUMED.
+- Run each suggested question once so it's cached.
+- The trial ends about 2026-12-25.
+
+## Improvements (suggested, not done)
+
+| # | Item | Why | Effort | Source |
+|---|---|---|---|---|
+| 1 | Shorter answers (word limit) and/or pin a faster orchestration model | Total latency is 15–35 s; streaming only improves *perceived* latency. Re-run the eval suite after any change. | S–M | Phase 7b, ADR-023 |
+| 2 | Add more semantic-view dimensions for likely questions (week, country × mode, …) | Missing dimensions make Analyst fall back to raw-table SQL (found in U4; now blocked and checked) | S | Phase 8 |
+| 3 | Multi-turn evaluation (follow-ups, context drift) | Not covered by the 34 single-turn cases | M | Phase 8 |
+| 4 | Red-team for instructions planted inside documents (a test corpus or a separate service) | Document injection resistance is instruction-based and untested | M | Phases 6, 8 |
+| 5 | Independent labelling or a second reviewer for the eval sets; repeat runs to measure variance | Labels are developer-written; runs are single samples | M | Phases 5, 8 |
+| 6 | Optional LLM-as-judge groundedness score as a second signal | Phrase checks can miss correct wording (S7 run 1) | M | ADR-024 |
+| 7 | Snowflake Budget or alert for Cortex spend | Resource monitors cover warehouses only | S | ADR-005 |
+| 8 | Host the UI (SiS container runtime or an internal host with SSO) | Local single-user app; the Agents API isn't supported on SiS warehouse runtime | L | ADR-002, ADR-022 |
+| 9 | Per-user document access (separate search services or policy inheritance) | Cortex Search uses owner's rights; ACCESS_GROUP isn't a security boundary | M | ADR-009 |
+| 10 | Revoke CORTEX_USER and USE AI FUNCTIONS from PUBLIC | Currently granted to PUBLIC by default | S | Phase 0 |
+| 11 | Orchestrated pipeline (Tasks or dbt) instead of a command sequence | Fine for a static source; production needs scheduling and lineage | M | Phase 2 |
+| 12 | Optional n8n supplier-incident workflow with human approval and audit log | Original "Feature F" (optional) | M | Project brief |
+
+## Known limitations (accepted; mention honestly in the interview)
+
+**Data**
+- DataCo is public retail/e-commerce sample data, not manufacturing or Worthington data.
+- It contains no supplier, carrier or plant fields.
+- **Market rotation:** 26 of 37 months contain only one market, so month-over-month trends mostly reflect market mix.
+- First Class is late on 100% of shipments, a pattern built into the dataset.
+- Revenue is booked (status-based), not recognised.
+
+**Documents**
+- Two pages are image-only (SQAM p.16 and p.39) and aren't extracted; there's no OCR.
+- Financial tables in the annual report's MD&A are flattened, and two nested-header tables are marked low-confidence.
+- The extraction rules are tuned to these three layouts.
+
+**Agent**
+- Routing and wording come from the model, so the tests check facts, not exact text.
+- It can make small inferences from today's date (for example "Q1 2027").
+- It occasionally makes small derived comparisons (for example "0.2 percentage points") or rounds slightly off ("~131K" for 131,667).
+
+**Evaluation**
+- 34 questions and 30 retrieval questions, written by the developer, with phrase-based fact checks.
+- Each run is a single sample of a non-deterministic model.
+
+**App**
+- Answers take 15–35 s in total.
+- Cosmetic: while an answer streams, the new message sits below the input until the page reruns.
+- Local, single user, no SSO.
+
+**Security**
+- Least privilege now depends on the dedicated user `SCC_APP_SVC`, with `DEFAULT_SECONDARY_ROLES = ()`.
+- The developer user `SCC_SVC` still holds the dev role; keep its key private.

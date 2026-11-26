@@ -336,7 +336,8 @@ def test_secret_scanner_detects_planted_secrets():
     jwt = "ey" + "J" + "a" * 30 + "." + "b" * 30 + "." + "c" * 20
     assert mod.PATTERNS["private key block"].search(key)
     assert mod.PATTERNS["JWT"].search(jwt)
-    assert mod.PATTERNS["credential assignment"].search("password = 'S3cretValue!'")
+    planted = "password = '" + "S3cretValue!" + "'"  # assembled at runtime, like the key above
+    assert mod.PATTERNS["credential assignment"].search(planted)
     assert not mod.PATTERNS["credential assignment"].search("password = '<set in .env>'")
     assert mod.FORBIDDEN_FILES.search("keys/rsa_key.p8") and mod.FORBIDDEN_FILES.search(".env")
 
