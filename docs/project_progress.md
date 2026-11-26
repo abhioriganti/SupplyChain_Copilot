@@ -1,6 +1,36 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 4, Document ingestion and RAG preprocessing · **Status:** ✅ **Phase 4 complete** (2026-11-26). Next is Phase 5.
+**Interview:** 2026-12-08 · **Current phase:** 5, Cortex Search and document retrieval · **Status:** ✅ **Phase 5 complete** (2026-11-26). Next is Phase 6.
+
+## Phase 5: Cortex Search and document retrieval (2026-11-26)
+
+### Build and evaluate
+```powershell
+.venv\Scripts\python scripts\run_sql_file.py sql\60_search\01_doc_search_service.sql
+.venv\Scripts\python -m supplychain_copilot.retrieval.search_client "What are the supplier corrective-action deadlines?"
+.venv\Scripts\python -m supplychain_copilot.retrieval.evaluate      # ~130 search calls; writes docs/retrieval_eval_report.md
+```
+
+### Completed and verified
+| Item | Evidence |
+|---|---|
+| Service | `SCC_DB.AI.SUPPLIER_DOCS_SEARCH`: indexing and serving ACTIVE, 152 rows, arctic-embed-m-v1.5, PK `CHUNK_ID`, `TARGET_LAG 1 day`. A manual `REFRESH` after reload worked (new data timestamp). |
+| Client | `retrieval/search_client.py`: REST `:query` with JWT auth. Returns passages with document, section, PDF and printed page, URL, version, text and scores, plus a formatted citation. |
+| Eval set | `eval/retrieval_eval_set.json`: 30 answerable questions (26 specific, 4 broad) and 3 unanswerable. Every label's evidence phrase was verified to exist on the labelled pages before retrieval. |
+| Quality (selected config: hybrid with reranker) | **doc@1 100%, hit@1 97%, hit@3 100%, hit@5 100%, answer@5 100%, MRR@5 0.983** |
+| Config comparison | No reranker: same hits, MRR 0.978, about 250 ms faster. Keyword-weighted hit@1 73%. Vector-weighted 93%. |
+| Citations | 660 of 660 returned passages match `DOCS.DOCUMENT_CHUNKS` (document, section, page range). Printed-label bug found and fixed: labels now come only from the chunk's own first and last page. |
+| Latency (client round trip) | Hybrid with reranker p50 815–899 ms, p95 967–1361 ms across runs; without reranker p50 about 600 ms |
+| Weak-evidence signal | Top-1 reranker score: answerable −3.51 to +3.30, unanswerable −10.86 to −8.68 (only 3 negatives, so it's a signal, not a threshold) |
+| Tests | `tests/test_retrieval.py`: 5 unit and 4 live tests. Full suite: **70 passed live**, 61 passed in CI mode. |
+
+### Limitations
+- 30 questions is a small eval set. The metrics are evidence for this corpus, not a general benchmark.
+- Labels were written by the developer and checked against the corpus, not by an independent annotator.
+- Latency is measured from a laptop over the internet and includes auth; server-side latency is lower.
+
+### Files (Phase 5)
+`sql/60_search/01_doc_search_service.sql`, `src/supplychain_copilot/retrieval/{__init__,search_client,evaluate}.py`, `eval/retrieval_eval_set.json`, `tests/test_retrieval.py`, `docs/retrieval_eval_report.md` (generated), ADR-019, `documents/chunking.py` (printed-label fix)
 
 ## Phase 4: document ingestion and RAG preprocessing (2026-11-26)
 

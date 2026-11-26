@@ -253,7 +253,14 @@ def chunk_document(spec: DocumentSpec, pages: list[PageResult]) -> list[Chunk]:
             if not text:
                 continue
             pages_used = [u.pdf_page for u in units]
-            labels = [u.printed_label for u in units if u.printed_label]
+            # A printed label is only valid for the page it was printed on: take the start label from
+            # the chunk's first page and the end label from its last page (None if that page has none).
+            first_label = next(
+                (u.printed_label for u in units if u.pdf_page == min(pages_used)), None
+            )
+            last_label = next(
+                (u.printed_label for u in reversed(units) if u.pdf_page == max(pages_used)), None
+            )
             flags = sorted({f for p in set(pages_used) for f in flags_by_page.get(p, [])})
             identity = f"{spec.document_id}|{min(pages_used)}|{section.title}|{text}"
             chunks.append(
@@ -264,8 +271,8 @@ def chunk_document(spec: DocumentSpec, pages: list[PageResult]) -> list[Chunk]:
                     section_title=section.title,
                     page_number=min(pages_used),
                     page_end=max(pages_used),
-                    printed_page_start=labels[0] if labels else None,
-                    printed_page_end=labels[-1] if labels else None,
+                    printed_page_start=first_label,
+                    printed_page_end=last_label,
                     chunk_text=text,
                     token_estimate=estimate_tokens(text),
                     contains_table=any(u.is_table for u in units),

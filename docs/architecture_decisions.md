@@ -173,6 +173,40 @@ It changes neither row count nor values. Eligibility, late rate, revenue choice 
 
 **Tradeoffs:** Heuristics are tuned to these three documents, so new layouts need a review against the quality report. There's no OCR for image-only content (2 pages flagged).
 
+## ADR-019: Cortex Search configuration, chosen by measurement
+**Status:** Accepted (2026-11-26)
+**Service:** `SCC_DB.AI.SUPPLIER_DOCS_SEARCH`.
+- Search column = document title + section path + chunk text.
+- `PRIMARY KEY (CHUNK_ID)`.
+- Attributes `DOCUMENT_ID`, `DOCUMENT_TYPE`, `ACCESS_GROUP`.
+- Default embedding model `snowflake-arctic-embed-m-v1.5` (English, 512-token window).
+- `TARGET_LAG = '1 day'` on X-Small `SCC_WH`.
+- No auto-suspend (it's in preview, and resuming returns HTTP 429); suspending serving manually is documented.
+
+**Evaluation** (30 labelled answerable questions plus 3 unanswerable, k = 5, `docs/retrieval_eval_report.md`):
+
+| Config | hit@1 | MRR@5 | p50 latency |
+|---|---|---|---|
+| Hybrid with reranker | 97% | 0.983 | 815–899 ms |
+| Hybrid without reranker | 97% | 0.978 | 583–619 ms |
+| Keyword-weighted | 73% | 0.850 | — |
+| Vector-weighted | 93% | 0.958 | — |
+
+- hit@5 and answer@5 were 100% for all configurations.
+- 660 of 660 returned passages had citation metadata matching `DOCS.DOCUMENT_CHUNKS`.
+
+**Decision:** default hybrid with reranker.
+- Hybrid clearly beats either signal alone.
+- The reranker costs about 200–300 ms. In return it provides a score that separates answerable from unanswerable questions in this sample: answerable top-1 scores ranged from −3.51 to +3.30, unanswerable from −10.86 to −8.68. The agent can use that as a "weak evidence" signal.
+
+**Not changed:**
+- Chunking: hit@5 is 100% and answer@5 is 100%, so there was no evidence a change was needed.
+- Client-side re-sorting by reranker score: it would fix the single rank-1 miss (R06), but with only 30 questions that's tuning to the test set.
+
+**Observed (undocumented):** a scoring weight of exactly 0 had no effect (identical rankings on all 33 questions), while non-zero weights (10 : 0.1) changed rankings. The evaluation uses non-zero weights.
+
+**Security:** the service runs with owner's rights. `ACCESS_GROUP` filtering is applied by the client and isn't a security boundary (ADR-009).
+
 ## ADR-013: Parse failures abort; source quirks are flagged
 **Status:** Accepted
 **Decision:**
