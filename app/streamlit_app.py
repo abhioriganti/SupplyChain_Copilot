@@ -14,8 +14,11 @@ from types import SimpleNamespace
 import streamlit as st
 
 from supplychain_copilot.agent.client import AgentAnswer, CopilotAgent
+from supplychain_copilot.incidents.service import IncidentService, copilot_drafter
+from supplychain_copilot.incidents.store import SnowflakeIncidentStore
 from supplychain_copilot.observability import build_log_record, log_request
 from supplychain_copilot.ui import charts, components
+from supplychain_copilot.ui import incidents as incidents_ui
 from supplychain_copilot.ui.cache import AnswerCache
 from supplychain_copilot.ui.citations import build_sources
 from supplychain_copilot.ui.data import DashboardData
@@ -40,11 +43,13 @@ st.set_page_config(page_title="SupplyChain Copilot", page_icon="📦", layout="w
 
 def services() -> SimpleNamespace:
     if "services" not in st.session_state:
+        agent = CopilotAgent()
         st.session_state.services = SimpleNamespace(
-            agent=CopilotAgent(),
+            agent=agent,
             data=DashboardData(),
             save_feedback=save_feedback,
             log_request=log_request,
+            incidents=IncidentService(SnowflakeIncidentStore(), drafter=copilot_drafter(agent)),
         )
     return st.session_state.services
 
@@ -204,8 +209,8 @@ with st.sidebar:
         "Tools: Cortex Analyst over a governed semantic view · Cortex Search over 3 public documents"
     )
 
-tab_chat, tab_dash, tab_sources = st.tabs(
-    ["💬 Ask the Copilot", "📈 Delivery dashboard", "📚 Sources"]
+tab_chat, tab_dash, tab_sources, tab_incidents = st.tabs(
+    ["💬 Ask the Copilot", "📈 Delivery dashboard", "📚 Sources", "🚨 Incidents (simulated)"]
 )
 
 with tab_chat:
@@ -266,3 +271,10 @@ with tab_sources:
         "Citations link to the public PDF at the cited page. Document passages are pinned by SHA-256 and "
         "every word is verified to appear on its cited page (see docs/document_extraction_report.md)."
     )
+
+with tab_incidents:
+    incident_service = getattr(services(), "incidents", None)  # optional (Phase 9)
+    if incident_service is None:
+        st.info("The simulated incident workflow isn't configured in this session.")
+    else:
+        incidents_ui.render(incident_service)

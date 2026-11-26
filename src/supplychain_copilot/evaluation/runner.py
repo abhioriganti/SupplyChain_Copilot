@@ -50,6 +50,16 @@ PRIVILEGE_PROBES = [
     ("CREATE TABLE", "CREATE TABLE SCC_DB.AI.SHOULD_NOT_EXIST (A INT)", False),
     ("SELECT feedback log (insert-only)", "SELECT COUNT(*) FROM SCC_DB.APP.AGENT_FEEDBACK", False),
     ("USE ROLE developer", "USE ROLE SCC_DEV_ROLE", False),
+    # Phase 9: the incident audit log is append-only for the runtime role.
+    (
+        "UPDATE incident audit log",
+        "UPDATE SCC_DB.APP.INCIDENT_AUDIT_LOG SET ACTOR = 'x' WHERE 1=0",
+        False,
+    ),
+    ("DELETE incident audit log", "DELETE FROM SCC_DB.APP.INCIDENT_AUDIT_LOG WHERE 1=0", False),
+    ("TRUNCATE incident audit log", "TRUNCATE TABLE SCC_DB.APP.INCIDENT_AUDIT_LOG", False),
+    ("SELECT incident table directly", "SELECT COUNT(*) FROM SCC_DB.APP.INCIDENT_AUDIT_LOG", False),
+    ("SELECT incident status view", "SELECT COUNT(*) FROM SCC_DB.APP.V_INCIDENT_STATUS", True),
 ]
 
 

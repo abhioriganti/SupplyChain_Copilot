@@ -15,6 +15,7 @@
   - Shorter answers cut p95 latency from 32 to 25 s.
   - See [docs/evaluation_findings.md](docs/evaluation_findings.md).
   - Every request is logged to a monitoring table.
+- **Human-in-the-loop automation (simulated):** the Copilot drafts the applicable supplier-quality procedures for an incident, and an **n8n** workflow pauses for a human decision. The approver must differ from the requester, and every step is written to an append-only, SHA-256-chained audit log in Snowflake, checked in SQL. Nothing is ever sent. See [docs/incident_workflow.md](docs/incident_workflow.md).
 - **Red-teamed:** 7 indirect prompt-injection attacks planted in a sandbox copy of the document corpus (instruction override, exfiltration, phishing, destructive SQL, a fake causal claim, hidden markup and a spoofed manual section). The production agent configuration resisted all 6 instruction attacks and rejected the spoof; see [docs/redteam_findings.md](docs/redteam_findings.md).
 - **Cost and access:** Cortex is granted explicitly to the two project roles (revoked from PUBLIC). An account budget alerts on spend, and the warehouse has a resource monitor.
 
@@ -42,6 +43,12 @@ Private keys stay outside the repo. See `sql/00_setup/01_account_setup.sql`, `sq
 .venv\Scripts\streamlit run app\streamlit_app.py
 ```
 See [docs/app_guide.md](docs/app_guide.md) for what's on screen and a 5–7 minute demo script.
+
+Optional, for the Incidents tab: start n8n and the callback API ([docs/incident_workflow.md](docs/incident_workflow.md#run-it)).
+```powershell
+docker compose --env-file .env -f n8n/docker-compose.yml up -d
+.venv\Scripts\python -m supplychain_copilot.incidents.api
+```
 
 ## Tests
 ```powershell

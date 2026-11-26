@@ -1,0 +1,69 @@
+# Phase 9: human-in-the-loop supplier-incident workflow (simulated)
+
+This is Feature F from the project brief: *"a simulated supplier-quality incident workflow using n8n, including human approval and an audit log."* Design decisions are in ADR-027.
+
+> **Simulated.** Incidents are practice records about made-up parts. No email is sent and no supplier is contacted. An approved incident only records `ACTION_SIMULATED`.
+
+## Flow
+```
+Streamlit "Incidents" tab                       n8n 2.47.5 (Docker, 127.0.0.1:5678)
+  1. open incident ── CREATED ──────────┐
+  2. Copilot drafts procedures ─ DRAFTED │ (Cortex Agent, SQAM citations)
+  3. submit ───── POST webhook + token ──┼──► token valid? ──no──► stop (nothing recorded)
+                                         │        │yes
+                                         │        ▼
+        incident API (127.0.0.1:8077) ◄──┼── SUBMITTED_FOR_APPROVAL (+ signed form URL)
+        token check, state machine,      │        ▼
+        separation of duties             │   Wait: approval form (24 h limit)
+                                         │        ├─ timeout ─────────► TIMED_OUT
+                                         │        ├─ approver = requester ► SUBMITTED_FOR_APPROVAL (reason), form re-opens
+                                         │        ├─ Reject ──────────► REJECTED
+                                         │        └─ Approve ─────────► APPROVED ► ACTION_SIMULATED
+                                         ▼
+        SCC_DB.APP.INCIDENT_AUDIT_LOG  (append-only, SHA-256 chained)
+```
+
+## Controls
+| Control | How it's enforced | Tested by |
+|---|---|---|
+| A human decides | Only `human` actors can approve or reject; the n8n form is the only decision path | `test_incidents.py` |
+| Separation of duties | The approver must differ from the requester (case- and space-insensitive). n8n checks first and re-opens the form; the **API enforces it regardless** (HTTP 409). | Unit and API tests; live run |
+| Valid sequence only | State machine: no decision before submission; rejected, timed-out and actioned incidents are final; the workflow can't write requester or agent events | Parametrised tests |
+| Append-only log | The runtime role holds INSERT on the table and SELECT on views only. UPDATE, DELETE, TRUNCATE and direct table reads are denied. | Privilege probes 13/13 (5 new) |
+| Tamper evidence | `EVENT_HASH = SHA-256(PREV_HASH ‖ PAYLOAD)` per incident. `V_INCIDENT_CHAIN_CHECK` recomputes it **in SQL**, and the app recomputes it in Python. | Unit test (edited and removed events detected); live test (Snowflake `SHA2` = Python) |
+| Authenticated callbacks | Shared secret in `X-SCC-Workflow-Token` from `.env`, never in the workflow JSON; compared in constant time; checked by both n8n and the API | API tests; live wrong-token request produced 0 callbacks |
+| No exposure | n8n and the API bind to 127.0.0.1. The container reaches the API through `host.docker.internal`. | Live reachability check |
+| Failure is recorded | A failed draft or an unreachable n8n becomes an `ERROR` event; the incident is kept and can be resubmitted | Unit and UI tests |
+| Bounded input | Length limits, a severity enum, credential redaction, and callback details truncated to 500 characters | Unit and API tests |
+
+## Live end-to-end run (2026-11-26, incident `INC-9BB8473DFE`)
+| # | Event | Actor | Detail |
+|---|---|---|---|
+| 1 | CREATED | requester (human) | "Burrs on valve housings at receiving inspection", Supplier A (simulated), severity high |
+| 2 | DRAFTED | supply_chain_copilot (agent) | Cited SQAM §7.1 (pp. 27–29), §7.2 (p. 29) and §7.4 (pp. 30–31): 48 h protection and acknowledgement, 2 / 14 / 30 working days; no cause assumed |
+| 3 | SUBMITTED_FOR_APPROVAL | n8n | Signed, single-execution form URL |
+| 4 | SUBMITTED_FOR_APPROVAL | n8n | **The requester tried to approve their own incident:** "approver must differ from requester"; the form re-opened |
+| 5 | APPROVED | a different person (human) | |
+| 6 | ACTION_SIMULATED | n8n | "Corrective Action Request drafted for Supplier A (simulated) (SIMULATED: not sent)" |
+
+`V_INCIDENT_CHAIN_CHECK` reported 6 events, 0 bad hashes, 0 bad links, 0 sequence gaps, and `CHAIN_OK = TRUE`. The API received exactly 4 authenticated callbacks. A request with a wrong token started the workflow but produced no callback.
+
+## Run it
+```powershell
+docker compose --env-file .env -f n8n/docker-compose.yml up -d          # first start pulls n8nio/n8n:2.47.5
+# first time only: open http://localhost:5678 and create the local owner account, then:
+docker exec -u node scc-n8n n8n import:workflow --input=/workflows/supplier_incident_approval.json
+docker exec -u node scc-n8n n8n publish:workflow --id=sccSupplierIncident1
+docker restart scc-n8n                                                     # registers the production webhook
+.venv\Scripts\python -m supplychain_copilot.incidents.api                  # callback API, keep running
+.venv\Scripts\streamlit run app\streamlit_app.py                           # Incidents tab
+```
+`SCC_WORKFLOW_TOKEN` must be set in `.env` (see `.env.example`). After changing the workflow, regenerate it with `python -m supplychain_copilot.incidents.n8n_workflow`; a test checks the committed JSON matches. Stop everything with `docker compose -f n8n/docker-compose.yml down`. The data stays in the `n8n_n8n-data` volume.
+
+## Limitations (honest)
+- **Identities are self-declared.** Requester and approver names are typed in, so separation of duties compares names, not authenticated users. Production would take both from SSO (for example the n8n form behind an identity-aware proxy, and Streamlit on an SSO host). Backlog item 8.
+- **Single writer.** Snowflake doesn't enforce PRIMARY KEY or UNIQUE on standard tables, so appends are serialised with a process lock. A second concurrent writer could create a duplicate sequence number, which the SQL chain check would flag. Production would use a single service, or a stream and task with a sequencer.
+- **Not tested live:** the 24-hour timeout (`TIMED_OUT`) and the Reject path. Both are covered by the workflow-graph and state-machine unit tests.
+- **A wrong token is dropped silently.** The webhook answers "Workflow was started" (respond-immediately mode), so a caller with a bad token sees success while nothing is recorded. The incident simply stays `DRAFTED` and can be resubmitted.
+- **Test incidents are kept.** The live pytest writes one incident marked "(automated test)". The log is append-only for the runtime role by design, so test incidents are not deleted.
+- The n8n AI Assistant and telemetry are left off; the editor needs a local owner account (n8n 2.x has no supported way to disable login).

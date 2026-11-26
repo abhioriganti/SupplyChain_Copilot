@@ -126,7 +126,31 @@ def _hybrid_answer() -> AgentAnswer:
     return parse_response("q", json.loads(FIXTURE.read_text(encoding="utf-8")), 12.3)
 
 
-def _app(agent_answer: AgentAnswer | None = None, data=None, saved=None) -> AppTest:
+class _Accepted:
+    def raise_for_status(self):
+        return None
+
+
+def _incident_service(posts: list | None = None, fail: bool = False):
+    from supplychain_copilot.incidents.service import IncidentService
+    from supplychain_copilot.incidents.store import InMemoryStore
+
+    def post(url, json, headers, timeout):
+        if fail:
+            raise ConnectionError("n8n down")
+        if posts is not None:
+            posts.append(json)
+        return _Accepted()
+
+    return IncidentService(
+        InMemoryStore(),
+        drafter=lambda f: {"draft": "Protect receiving plants within 48 hours.", "citations": []},
+        post=post,
+        webhook_url="http://n8n.test/webhook/x",
+    )
+
+
+def _app(agent_answer: AgentAnswer | None = None, data=None, saved=None, incidents=None) -> AppTest:
     st.cache_data.clear()
     at = AppTest.from_file(APP, default_timeout=30)
     at.session_state["services"] = SimpleNamespace(
@@ -136,8 +160,44 @@ def _app(agent_answer: AgentAnswer | None = None, data=None, saved=None) -> AppT
         if saved is not None
         else (lambda rec: "snowflake"),
         log_request=lambda rec: "test",
+        incidents=incidents or _incident_service(),
     )
     return at
+
+
+def _fill_incident_form(at: AppTest) -> None:
+    at.text_input[0].input("Burrs on valve housings")
+    at.text_input[2].input("VH-100")
+    at.text_area[0].input("Receiving inspection found burrs on 40 of 500 housings.")
+    at.text_input[3].input("Alex Requester")
+    next(b for b in at.button if "request approval" in b.label).click().run()
+
+
+def test_incident_tab_opens_drafts_and_submits(monkeypatch):
+    monkeypatch.setenv("SCC_WORKFLOW_TOKEN", "t" * 32)
+    posts: list = []
+    svc = _incident_service(posts)
+    at = _app(incidents=svc)
+    at.run()
+    assert any("Simulated workflow" in m.value for m in at.markdown)
+    _fill_incident_form(at)
+    assert not at.exception
+    assert any("sent to the approval workflow" in s.value for s in at.success)
+    assert posts and posts[0]["requester"] == "Alex Requester" and posts[0]["simulated"] is True
+    inc = posts[0]["incident_id"]
+    assert [e.event_type for e in svc.store.history(inc)] == ["CREATED", "DRAFTED"]
+
+
+def test_incident_tab_reports_unavailable_workflow_without_losing_incident(monkeypatch):
+    monkeypatch.setenv("SCC_WORKFLOW_TOKEN", "t" * 32)
+    svc = _incident_service(fail=True)
+    at = _app(incidents=svc)
+    at.run()
+    _fill_incident_form(at)
+    assert not at.exception
+    assert any("didn't accept the incident" in e.value for e in at.error)
+    (inc,) = {e.incident_id for e in svc.store.events}
+    assert [e.event_type for e in svc.store.history(inc)] == ["CREATED", "DRAFTED", "ERROR"]
 
 
 # ----------------------------------------------------------------------------- pure modules

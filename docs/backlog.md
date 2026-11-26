@@ -35,7 +35,7 @@ This is a consolidated list from Phases 0–8, so the work can be picked up late
 | 9 | Per-user document access (separate search services or policy inheritance) | Cortex Search uses owner's rights; ACCESS_GROUP isn't a security boundary | M | ADR-009 |
 | 10 | ~~Revoke CORTEX_USER and USE AI FUNCTIONS from PUBLIC~~ **done 2026-11-26**; verified with `SHOW GRANTS` and eval run 4 | Was granted to PUBLIC by default | — | Phase 0, ADR-025 |
 | 11 | Orchestrated pipeline (Tasks or dbt) instead of a command sequence | Fine for a static source; production needs scheduling and lineage | M | Phase 2 |
-| 12 | Optional n8n supplier-incident workflow with human approval and audit log | Original "Feature F" (optional) | M | Project brief |
+| 12 | ~~n8n supplier-incident workflow~~ **done 2026-11-26 (Phase 9)**: human approval, separation of duties, hash-chained append-only audit log (`docs/incident_workflow.md`). Still open: SSO identities, a live Reject/Timeout run. | Original "Feature F" | — | Project brief, ADR-027 |
 
 ## Known limitations (accepted; mention honestly in the interview)
 

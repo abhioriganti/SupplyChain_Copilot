@@ -1,0 +1,507 @@
+{
+  "id": "sccSupplierIncident1",
+  "name": "SCC: supplier-quality incident approval (simulated)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "0fd124ea-e9e7-53a4-b3fe-f6830bdbfa57",
+      "name": "Incident submitted",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "336f6ec3-0ccf-5ce3-af32-a09fb84494eb",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "scc-supplier-incident",
+        "authentication": "none",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "ec49935d-d6cc-5684-8c73-8e70fcc91244",
+      "name": "Token valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "31c50d4d-7768-5722-98f5-4ec48476d2c2",
+              "leftValue": "={{ $json.headers['x-scc-workflow-token'] === $env.SCC_WORKFLOW_TOKEN }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "a533c2b4-cbbc-584f-a922-bc764e824cb5",
+      "name": "Record: awaiting approval",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SCC_INCIDENT_API }}/incidents/{{ $('Incident submitted').item.json.body.incident_id }}/events",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-SCC-Workflow-Token",
+              "value": "={{ $env.SCC_WORKFLOW_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ event_type: 'SUBMITTED_FOR_APPROVAL', actor: 'n8n', details: { approval_url: $execution.resumeFormUrl } }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "5d7fb0a8-bca0-51a1-a5d6-92de1f443a5b",
+      "name": "Human approval",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        300
+      ],
+      "webhookId": "0261cbc0-48d7-5f29-9651-1e759e4453aa",
+      "parameters": {
+        "resume": "form",
+        "formTitle": "Approve simulated supplier-quality incident",
+        "formDescription": "=SIMULATED supplier-quality incident (practice record; nothing will be sent).\n\nIncident: {{ $('Incident submitted').item.json.body.incident_id }}\nTitle: {{ $('Incident submitted').item.json.body.title }}\nSupplier: {{ $('Incident submitted').item.json.body.supplier }} | Part: {{ $('Incident submitted').item.json.body.part }} | Severity: {{ $('Incident submitted').item.json.body.severity }}\nRequested by: {{ $('Incident submitted').item.json.body.requester }}\n\nCopilot draft of the applicable procedures (verify against the cited manual pages):\n{{ $('Incident submitted').item.json.body.draft_excerpt || '(no draft)' }}\n\nYou cannot approve an incident you requested.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Decision",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Approve"
+                  },
+                  {
+                    "option": "Reject"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Approver name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Comment",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "limitWaitTime": true,
+        "limitType": "afterTimeInterval",
+        "resumeAmount": 24,
+        "resumeUnit": "hours",
+        "options": {}
+      }
+    },
+    {
+      "id": "3db71a67-0ae6-58ca-bef0-a27d6042a029",
+      "name": "Timed out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "3446c442-5e91-528b-a52d-bdb086ea26d6",
+              "leftValue": "={{ !$json.Decision }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "0d9a3ac2-1042-5e23-888a-f6aab7b9cd3f",
+      "name": "Record: timed out",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SCC_INCIDENT_API }}/incidents/{{ $('Incident submitted').item.json.body.incident_id }}/events",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-SCC-Workflow-Token",
+              "value": "={{ $env.SCC_WORKFLOW_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ event_type: 'TIMED_OUT', actor: 'n8n', details: { reason: 'no decision within 24 hours' } }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "6eddd045-889a-5f4e-a15e-ed74abd1c2e2",
+      "name": "Approver is requester?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "647d1a4c-f9cb-57e0-aeef-e681fe99ca98",
+              "leftValue": "={{ ($json['Approver name'] || '').trim().toLowerCase() === ($('Incident submitted').item.json.body.requester || '').trim().toLowerCase() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "6f06e74d-1e69-5f62-9de6-f2a208a9d18e",
+      "name": "Record: re-request approval",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        560
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SCC_INCIDENT_API }}/incidents/{{ $('Incident submitted').item.json.body.incident_id }}/events",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-SCC-Workflow-Token",
+              "value": "={{ $env.SCC_WORKFLOW_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ event_type: 'SUBMITTED_FOR_APPROVAL', actor: 'n8n', details: { approval_url: $execution.resumeFormUrl, reason: 'approver must differ from requester' } }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "d898dee5-7890-5865-bfba-3a92e8cb392d",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "11679220-a65c-5569-87bb-04cdfefbd543",
+              "leftValue": "={{ $json.Decision === 'Approve' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "90de2fc2-7e28-5e00-ab84-28ed25a87a76",
+      "name": "Record: approved",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SCC_INCIDENT_API }}/incidents/{{ $('Incident submitted').item.json.body.incident_id }}/events",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-SCC-Workflow-Token",
+              "value": "={{ $env.SCC_WORKFLOW_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ event_type: 'APPROVED', actor: $json['Approver name'], details: { comment: $json.Comment || '' } }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "bd36cfc8-d817-52a7-9ef0-3ae6a973d9e5",
+      "name": "Record: simulated action",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SCC_INCIDENT_API }}/incidents/{{ $('Incident submitted').item.json.body.incident_id }}/events",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-SCC-Workflow-Token",
+              "value": "={{ $env.SCC_WORKFLOW_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ event_type: 'ACTION_SIMULATED', actor: 'n8n', details: { action: 'Corrective Action Request drafted for ' + $('Incident submitted').item.json.body.supplier + ' (SIMULATED: not sent)' } }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "613da72d-ba46-54a5-991f-2b0993464ebd",
+      "name": "Record: rejected",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SCC_INCIDENT_API }}/incidents/{{ $('Incident submitted').item.json.body.incident_id }}/events",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-SCC-Workflow-Token",
+              "value": "={{ $env.SCC_WORKFLOW_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ event_type: 'REJECTED', actor: $('Human approval').item.json['Approver name'], details: { comment: $('Human approval').item.json.Comment || '' } }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Incident submitted": {
+      "main": [
+        [
+          {
+            "node": "Token valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token valid?": {
+      "main": [
+        [
+          {
+            "node": "Record: awaiting approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Record: awaiting approval": {
+      "main": [
+        [
+          {
+            "node": "Human approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human approval": {
+      "main": [
+        [
+          {
+            "node": "Timed out?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timed out?": {
+      "main": [
+        [
+          {
+            "node": "Record: timed out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Approver is requester?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approver is requester?": {
+      "main": [
+        [
+          {
+            "node": "Record: re-request approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: re-request approval": {
+      "main": [
+        [
+          {
+            "node": "Human approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Record: approved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: approved": {
+      "main": [
+        [
+          {
+            "node": "Record: simulated action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

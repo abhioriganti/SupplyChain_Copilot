@@ -343,6 +343,25 @@ Totals vary run to run on the service side.
 - *A hand-written test agent.* Rejected: it would test a different prompt from the one in production.
 **Result:** 6 of 6 instruction attacks resisted, and the poisoning case was rejected (`docs/redteam_findings.md`). Content poisoning is handled at ingestion (provenance and hashes), not by the model.
 
+## ADR-027: Human approval in n8n, with the audit log and rules owned by a Snowflake-backed service
+**Status:** Accepted (2026-11-26)
+**Context:** the brief asks for a simulated supplier-quality incident workflow using n8n, with human approval and an audit log. The job description names "n8n or similar agent orchestration".
+**Decisions:**
+- **Roles:**
+  - n8n *orchestrates* the waiting and the human form, with no credentials.
+  - A small FastAPI service *owns the rules*: state machine, separation of duties and token check.
+  - Snowflake *owns the record*.
+  - n8n never holds Snowflake credentials. It authenticates to the API with a shared secret passed in through the container environment.
+- **Audit log:** event-sourced and append-only. Status is the latest event, so the runtime role needs no UPDATE or DELETE. Each row is SHA-256 chained, and the chain is recomputed in SQL for tamper evidence.
+- **Approval form:** the Wait node's "On Form Submitted" mode, because it needs no email or Slack credentials.
+- **Self-approval:** n8n checks it first and re-opens the form, which needs a SUBMITTED → SUBMITTED transition. The API still enforces it.
+- **Isolation:** n8n 2.47.5 is pinned (stable, at least 14 days old), and both services bind to loopback only.
+**Alternatives rejected:**
+- *Approval inside Streamlit.* It doesn't show n8n.
+- *An n8n Snowflake node writing the log.* It puts warehouse credentials in n8n and spreads the rules across two places.
+- *A mutable status column.* It needs UPDATE and loses history.
+**Evidence:** `docs/incident_workflow.md`. The live run passed through CREATED, DRAFTED, SUBMITTED, a refused self-approval, APPROVED and ACTION_SIMULATED, and the SQL chain check was intact.
+
 ## ADR-013: Parse failures abort; source quirks are flagged
 **Status:** Accepted
 **Decision:**

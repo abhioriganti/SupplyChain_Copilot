@@ -19,12 +19,15 @@ dependencies = [
     "streamlit>=1.40,<2",
     "pymupdf>=1.24,<2",
     "plotly>=5.24,<7",  # AGPL-3.0: fine for this portfolio project; review before commercial use
+    "fastapi>=0.115,<1",  # Phase 9: callback API for the n8n approval workflow
+    "uvicorn>=0.30,<1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8,<9",
     "ruff>=0.6",
+    "httpx>=0.27,<1",  # FastAPI TestClient
 ]
 
 [tool.setuptools.packages.find]
