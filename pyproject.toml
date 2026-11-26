@@ -17,7 +17,8 @@ dependencies = [
     "requests>=2.31,<3",
     "pandas>=2.2,<3",
     "streamlit>=1.40,<2",
-    "pymupdf>=1.24,<2",  # AGPL-3.0: fine for this portfolio project; review before commercial use
+    "pymupdf>=1.24,<2",
+    "plotly>=5.24,<7",  # AGPL-3.0: fine for this portfolio project; review before commercial use
 ]
 
 [project.optional-dependencies]
@@ -52,3 +53,5 @@ ignore = [
 "scripts/*" = ["S608"]  # identifiers come from validated config, not user input
 "src/supplychain_copilot/semantic/validate_view.py" = ["S608"]  # SQL built only from module constants
 "src/supplychain_copilot/documents/load.py" = ["S608"]  # SQL built only from module constants
+"src/supplychain_copilot/ui/data.py" = ["S608"]  # constants + bound placeholders only
+"src/supplychain_copilot/ui/feedback.py" = ["S608"]  # constant column list + bound values

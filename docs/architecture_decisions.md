@@ -237,6 +237,55 @@ Routing, source labelling, citation, no-causation and missing-evidence behaviour
 **Verification:** live pytest asserts the app user can query the semantic view and is denied raw tables, DELETE, CREATE and `USE ROLE SCC_DEV_ROLE`.
 **Lesson:** least privilege has to be **tested**, not assumed from grants. ADR-004 is amended: the runtime boundary is the user plus the role, not the role alone.
 
+## ADR-022: Local Streamlit app as a thin composition layer over tested modules
+**Status:** Accepted (2026-11-26)
+**Decision:**
+- `app/streamlit_app.py` only composes UI.
+- Data access (`ui/data.py`), charts (`ui/charts.py`), citations (`ui/citations.py`), feedback (`ui/feedback.py`) and rendering (`ui/components.py`) are separate modules.
+- The agent client is reused unchanged.
+- Services are injected through `st.session_state`, so the real page is tested headlessly with `streamlit.testing.AppTest` and fakes, with no Snowflake and no cost.
+
+**Data:** dashboard numbers come from the semantic view as the runtime user, which can't read raw tables. The dashboard therefore can't disagree with the agent's governed definitions.
+
+**Choices:**
+- **Non-streaming agent calls** with a status indicator: simpler, and answers take 12–28 s. Streaming (`stream: true`) is a Phase 8 improvement.
+- **Citations** resolve to `DOCS.DOCUMENT_CHUNKS` metadata and link to `source_url#page=N`.
+- **The monthly chart** hides market-months with fewer than 100 shipments and breaks lines where a market is absent, so market rotation isn't misread as a trend.
+- **Feedback** goes to `APP.AGENT_FEEDBACK` via INSERT-only, with a local JSONL fallback.
+
+**Alternatives:**
+- Streamlit in Snowflake: the Agents REST API isn't supported on warehouse runtime (ADR-002).
+- A React front end: more work, and no value for a single-user demo.
+
+## ADR-023: Streamed agent responses and a per-session answer cache
+**Status:** Accepted (2026-11-26)
+**Context:** Non-streaming answers took 12–28 s with no visible progress.
+
+**Measured timeline** (streamed run, document question):
+- planning status at 2.0 s
+- tool call at 4.9 s
+- search results at 5.3 s
+- first answer text at 13.8 s
+- done at 17.0 s
+
+The model composes before emitting, and the answer text then arrives in about 0.5 s. Streaming therefore improves **perceived** latency (progress from about 2 s) but not total time. Two further measured runs:
+
+| Question | First progress | First text | Total |
+|---|---|---|---|
+| Data question | 2.0 s | 31.1 s | 34.4 s |
+| Hybrid | 5.5 s | 24.4 s | 30.4 s |
+
+Totals vary run to run on the service side.
+
+**Decision:**
+1. `CopilotAgent.ask_stream()` uses `stream: true`. Status, tool (including the actual search query) and text events become live UI updates. The aggregate `response` event is parsed by the same `parse_response` as the non-streaming path, so answers are identical in structure. Transient errors are retried only before the first event.
+2. **A per-session cache** for standalone questions only: suggested questions, or any question with no prior conversation. It holds successful answers only, is always labelled "reused from earlier in this session", offers "Ask again live", and is cleared with the conversation.
+3. `ask()`, the non-streaming path, stays for evaluation scripts.
+
+**Bug found in live testing:** SSE responses carry no charset, so `requests` decoded UTF-8 as ISO-8859-1 ('§' → 'Â§'). Fixed by forcing UTF-8 (SSE is UTF-8 by spec), with a regression test.
+
+**Not done (options left for later):** shorter answers and pinning a faster model would cut total time, but they change answer content and would require re-running the agent test suite.
+
 ## ADR-013: Parse failures abort; source quirks are flagged
 **Status:** Accepted
 **Decision:**

@@ -1,6 +1,48 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 6, Cortex Agent and hybrid RAG · **Status:** ✅ **Phase 6 complete** (2026-11-26). Next is Phase 7 (UI).
+**Interview:** 2026-12-08 · **Current phase:** 7, Streamlit application · **Status:** ✅ **Phase 7 complete** (2026-11-26). Next is Phase 8.
+
+## Phase 7b: latency UX: streaming and session cache (2026-11-26)
+
+| Item | Evidence |
+|---|---|
+| Streaming client | `CopilotAgent.ask_stream()` (`stream: true`) yields status, tool and text events plus one final answer, parsed by the same `parse_response`. `SnowflakeRestClient.post_stream()` parses the event stream. |
+| UI | A live status box shows the current step and elapsed seconds, tool lines show the search query and SQL execution, and the answer text streams in. The full answer block renders when done. |
+| Cache | `ui/cache.py`: standalone questions only (suggestions, or no prior conversation). Successful answers only, labelled "reused from earlier in this session", with an **Ask again live** button; cleared with the conversation. |
+| Measured (streamed) | First progress at 2.0–5.5 s. First answer text at 13.8 / 31.1 / 24.4 s. Total 17.0 / 34.4 / 30.4 s (document / data / hybrid). **Total time isn't reduced; perceived latency is.** Cached repeat is about 2 s, with no agent call. |
+| Bug fixed | SSE decoded as ISO-8859-1 ('§' → 'Â§'); UTF-8 is now forced, with a regression test |
+| Live check | Streamed answer with live status ("Getting additional context… (4s)"); repeat click served from cache with label and button |
+| Tests | `tests/test_streaming_cache.py`: 16 passed (event mapping, error and empty stream, retry before first event, SSE parsing, UTF-8 regression, cache rules, page-level cache, live re-ask, clear) |
+
+## Phase 7: Streamlit enterprise AI application (2026-11-26)
+
+### Run
+```powershell
+.venv\Scripts\python scripts\run_sql_file.py sql\80_app\01_app_ui_grants.sql   # feedback table + UI grants
+.venv\Scripts\streamlit run app\streamlit_app.py
+```
+
+### Completed and verified
+| Item | Evidence |
+|---|---|
+| App | `app/streamlit_app.py` with header, disclaimer, live KPI row, chat (history, suggestions, status, errors), verified results and SQL, sources with page links, agent charts, feedback, a dashboard tab (3 Plotly charts) and a sources tab |
+| Modules | `ui/{data,charts,citations,feedback,components}.py`. No SQL or credentials in the page; the agent client is reused. |
+| Live KPIs (not hardcoded) | Read as `SCC_APP_SVC` from the semantic view: 65,752 orders, 57.3% late, 3.50 days, 3 documents / 152 passages |
+| Grants | `sql/80_app/01_app_ui_grants.sql`: SELECT on `DOCS.DOCUMENTS` and `DOCUMENT_CHUNKS`, INSERT-only on `APP.AGENT_FEEDBACK`. Raw tables are still denied. |
+| Live browser verification | **Hybrid** (required question): correct numbers, 4 cited sources with links, SQL panel marked steward-verified, 28.3 s. **Document:** child labor → SCOC p.5-6, 12.4 s. **Structured:** Standard Class 60.2% (22,637 of 37,632), 24.2 s. **Corrective action:** 2 / 14 / 30 days with footnote conditions. **Feedback:** row written to `APP.AGENT_FEEDBACK` (rating 1, 4 citations, 28.34 s), no fallback used. |
+| Charts | Region (23 bars, 52.6–60.0%), shipping mode (0% / 20% / 51.6% / 60.2%), monthly by market. Fixed during verification: tiny market-months hidden and lines broken across absent months. |
+| UI polish found while testing | Snippet title prefix removed; internal agent steps (`data_to_chart`, `server_skill`) hidden from the tool caption; agent Vega-Lite charts now rendered |
+| Tests | `tests/test_ui.py`: **18 passed** (modules plus the real page via `streamlit.testing.AppTest` with fakes: KPIs, hybrid answer with sources and SQL, suggestion button, agent error, dashboard failure without leaking details, document answer, feedback saved once). `test_agent.py` adds a chart-parsing test. |
+| Secrets | Credentials stay server-side (`.env`); `client.showErrorDetails = "none"`; friendly errors (tested) |
+| Docs | `docs/app_guide.md` (setup, screen map, security, demo script), README, ADR-022 |
+
+### Limitations
+- Answers are non-streaming (12–28 s) with a status indicator. Streaming is a Phase 8 candidate.
+- While an answer is being generated, the new message renders below the input until the page reruns (a Streamlit quirk with chat inside tabs). It's cosmetic.
+- Single-user local app; no SSO.
+
+### Files (Phase 7)
+`app/streamlit_app.py`, `src/supplychain_copilot/ui/{__init__,data,charts,citations,feedback,components}.py`, `sql/80_app/01_app_ui_grants.sql`, `.streamlit/config.toml`, `.claude/launch.json`, `tests/test_ui.py`, `agent/client.py` (charts), `tests/test_agent.py`, `pyproject.toml` (+plotly), `requirements.lock`, `docs/app_guide.md`, README, ADR-022
 
 ## Phase 6: Cortex Agent and hybrid RAG (2026-11-26)
 

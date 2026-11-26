@@ -66,6 +66,20 @@ def test_parse_real_hybrid_response():
     assert a.suggested_queries
 
 
+def test_chart_spec_parsed_and_bad_chart_skipped():
+    spec = '{"$schema": "https://vega.github.io/schema/vega-lite/v5.json", "mark": "bar", "data": {"values": []}}'
+    resp = {
+        "status": "completed",
+        "content": [
+            {"type": "text", "text": "x"},
+            {"type": "chart", "chart": {"chart_spec": spec}},
+            {"type": "chart", "chart": {"chart_spec": "{not json"}},
+        ],
+    }
+    a = parse_response("q", resp)
+    assert len(a.charts) == 1 and a.charts[0]["mark"] == "bar"
+
+
 def test_duplicate_citations_collapsed():
     item = {
         "type": "text",

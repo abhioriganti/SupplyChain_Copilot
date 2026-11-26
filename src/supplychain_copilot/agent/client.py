@@ -15,8 +15,10 @@ cortex-agents-run): {role, content[], metadata{usage, ...}, status}; content ite
 
 from __future__ import annotations
 
+import json
 import re
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -64,6 +66,9 @@ class AgentAnswer:
     citations: list[Citation] = field(default_factory=list)
     tool_calls: list[ToolCall] = field(default_factory=list)
     suggested_queries: list[str] = field(default_factory=list)
+    charts: list[dict[str, Any]] = field(
+        default_factory=list
+    )  # Vega-Lite specs built from tool results
     status: str | None = None
     latency_s: float = 0.0
     usage: dict[str, Any] = field(default_factory=dict)
@@ -89,6 +94,35 @@ class InvalidQuestion(ValueError):
     pass
 
 
+@dataclass
+class AgentEvent:
+    """Progress event from a streamed run. kind: status | tool | text | final."""
+
+    kind: str
+    message: str = ""
+    text: str = ""
+    answer: AgentAnswer | None = None
+
+
+_TOOL_STATUS = {
+    "supplier_documents": "Searching Worthington's public documents",
+    "delivery_analytics": "Querying governed delivery metrics",
+    "system_execute_sql": "Running SQL on the governed semantic view",
+}
+
+
+def describe_tool_use(data: dict[str, Any]) -> str:
+    name = data.get("name", "")
+    inp = data.get("input") or {}
+    if name == "supplier_documents" and inp.get("query"):
+        return f"🔎 Searching documents: “{inp['query']}”"
+    if name == "system_execute_sql" or inp.get("sql"):
+        return "📊 Running SQL on the governed semantic view"
+    if name == "delivery_analytics":
+        return "📊 Reading governed metric definitions"
+    return ""  # internal steps (charting, skills) are not shown
+
+
 def validate_question(question: str) -> str:
     q = (question or "").strip()
     if not q:
@@ -112,6 +146,7 @@ def parse_response(question: str, resp: dict[str, Any], latency_s: float = 0.0) 
     calls: dict[str, ToolCall] = {}
     ordered: list[ToolCall] = []
     suggestions: list[str] = []
+    charts: list[dict[str, Any]] = []
     for item in resp.get("content", []):
         kind = item.get("type")
         if kind == "text":
@@ -152,6 +187,14 @@ def parse_response(question: str, resp: dict[str, Any], latency_s: float = 0.0) 
                     call.rows = j["result_set"].get("data", [])
                 if "search_results" in j:
                     call.search_results = j["search_results"]
+        elif kind == "chart":
+            spec = (item.get("chart") or {}).get("chart_spec")
+            try:
+                parsed = json.loads(spec) if isinstance(spec, str) else spec
+                if isinstance(parsed, dict):
+                    charts.append(parsed)
+            except (TypeError, ValueError):
+                pass  # an unparseable chart is skipped; the answer text and tables still render
         elif kind == "suggested_queries":
             suggestions = [
                 s.get("query", "") for s in item.get("suggested_queries", []) if s.get("query")
@@ -166,6 +209,7 @@ def parse_response(question: str, resp: dict[str, Any], latency_s: float = 0.0) 
         citations=unique_citations,
         tool_calls=ordered,
         suggested_queries=suggestions,
+        charts=charts,
         status=resp.get("status"),
         latency_s=latency_s,
         usage=meta.get("usage", {}),
@@ -253,6 +297,102 @@ class CopilotAgent:
                 answer.error = f"status: {answer.status}"
             return answer
         return fallback(q, "service", "retries exhausted", time.perf_counter() - start)
+
+    def ask_stream(
+        self, question: str, history: list[dict[str, Any]] | None = None
+    ) -> Iterator[AgentEvent]:
+        """Streamed run: yields status/tool/text events as they happen, then exactly one 'final' event
+        whose answer is parsed from the aggregate `response` event (same shape as ask()). Errors become a
+        final fallback answer; transient connection errors are retried only before any event arrives."""
+        try:
+            q = validate_question(question)
+        except InvalidQuestion as exc:
+            yield AgentEvent("final", answer=fallback(question, "invalid", str(exc)))
+            return
+        messages = list(history or []) + [
+            {"role": "user", "content": [{"type": "text", "text": q}]}
+        ]
+        start = time.perf_counter()
+        for attempt in range(self._max_retries + 1):
+            received_any = False
+            try:
+                for event, data in self._client.post_stream(
+                    AGENT_PATH, {"messages": messages, "stream": True}
+                ):
+                    received_any = True
+                    data = data if isinstance(data, dict) else {}
+                    if event == "response.status" and data.get("message"):
+                        yield AgentEvent("status", message=data["message"])
+                    elif event == "response.tool_result.status":
+                        msg = _TOOL_STATUS.get(data.get("message", "").replace("Running ", ""), "")
+                        if msg:
+                            yield AgentEvent("status", message=msg)
+                    elif event == "response.tool_use":
+                        msg = describe_tool_use(data)
+                        if msg:
+                            yield AgentEvent("tool", message=msg)
+                    elif event == "response.text.delta" and data.get("text"):
+                        yield AgentEvent("text", text=data["text"])
+                    elif event == "error":
+                        detail = f"{data.get('code', '')}: {data.get('message', '')}"
+                        yield AgentEvent(
+                            "final",
+                            answer=fallback(q, "service", detail, time.perf_counter() - start),
+                        )
+                        return
+                    elif event == "response":
+                        answer = parse_response(q, data, time.perf_counter() - start)
+                        if not answer.text:
+                            answer = fallback(
+                                q, "empty", f"status={answer.status}", answer.latency_s
+                            )
+                        yield AgentEvent("final", answer=answer)
+                        return
+                yield AgentEvent(
+                    "final",
+                    answer=fallback(
+                        q, "empty", "stream ended without a response", time.perf_counter() - start
+                    ),
+                )
+                return
+            except SnowflakeRestError as exc:
+                if (
+                    exc.status in RETRYABLE_STATUS
+                    and attempt < self._max_retries
+                    and not received_any
+                ):
+                    time.sleep(self._backoff_s * (2**attempt))
+                    continue
+                reason = {401: "auth", 403: "permission", 429: "rate_limited"}.get(
+                    exc.status, "service"
+                )
+                yield AgentEvent(
+                    "final",
+                    answer=fallback(
+                        q,
+                        reason,
+                        f"HTTP {exc.status}: {exc.body[:300]}",
+                        time.perf_counter() - start,
+                    ),
+                )
+                return
+            except requests.Timeout:
+                yield AgentEvent(
+                    "final",
+                    answer=fallback(q, "timeout", "client timeout", time.perf_counter() - start),
+                )
+                return
+            except requests.RequestException as exc:
+                if attempt < self._max_retries and not received_any:
+                    time.sleep(self._backoff_s * (2**attempt))
+                    continue
+                yield AgentEvent(
+                    "final",
+                    answer=fallback(
+                        q, "service", f"{type(exc).__name__}: {exc}", time.perf_counter() - start
+                    ),
+                )
+                return
 
 
 def main() -> int:  # python -m supplychain_copilot.agent.client "question"
