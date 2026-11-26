@@ -3,7 +3,7 @@
 ## Run locally (Windows PowerShell)
 
 ```powershell
-cd "C:\Users\abhis\projects\SupplyChain Copilot"
+# from the project root
 .venv\Scripts\streamlit run app\streamlit_app.py
 ```
 
@@ -35,24 +35,9 @@ If the runtime user isn't configured, the app fails closed: it shows a warning a
 - **No secrets in the browser:** credentials load server-side from `.env`. `client.showErrorDetails = "none"` hides tracebacks, and errors show friendly text (tested: a failure message containing an account name isn't displayed).
 - **Feedback** stores question, answer excerpt, rating, tools, citation count and latency, with credential patterns redacted. If Snowflake is unavailable it falls back to `logs/feedback.jsonl` (gitignored).
 
-## 5-to-7-minute demo script
+## Demo script
 
-1. **Framing (30 s):** read the disclaimer, then point at the KPIs: "These come live from the governed semantic view, the same definitions the agent uses."
-2. **Structured (1 min):** click *"Which shipping mode has the best on-time performance?"* → Standard Class 60.2% (22,637 of 37,632). Open **Verified results and SQL**: `SEMANTIC_VIEW(... METRICS orders.on_time_delivery_rate ...)`. "The model chose a governed metric; it didn't write its own formula."
-3. **Document (1 min):** click *"What are the supplier corrective-action deadlines?"* → 2 / 14 / 30 working days. Open the **Sources** link, which opens the PDF at page 29.
-4. **Hybrid (1.5 min):** click the long hybrid suggestion → regions with rates and counts, plus cited procedures, and the explicit line that delays don't prove supplier-quality issues.
-5. **Governance story (1.5 min):**
-   - The semantic view prevents metric drift (a fan-out join inflates revenue 3.49×).
-   - Least privilege had to be *tested*: secondary roles made the "read-only" role able to DELETE until the dedicated runtime user fixed it.
-6. **Dashboard (30 s):** the monthly chart and its caption about market rotation, which shows the data was profiled before it was trusted.
-7. **Close:** feedback goes to `APP.AGENT_FEEDBACK`. Production next steps are Phase 8.
-
-**Timing:**
-- Agent answers take about 15–35 s in total.
-- Live progress appears within about 2–5 s and shows the steps and the actual search query.
-- **Rehearse each suggested question once before presenting.** Repeats are then served instantly from the session cache, labelled "reused from earlier in this session".
-- Use **🔄 Ask again live** if someone wants to see a fresh run.
-- Start the hybrid question while you narrate, and have a backup recording or screenshots ready.
+The current, timed interview script is in [interview/demo_script.md](interview/demo_script.md), with Q&A in [interview/technical_qa.md](interview/technical_qa.md) and the fallback plan in [interview/backup_plan.md](interview/backup_plan.md). (The Phase 7 draft that was here has been replaced.)
 
 ## Tests
 

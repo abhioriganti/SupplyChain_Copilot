@@ -1,6 +1,44 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 8, Evaluation, reliability, security and observability · **Status:** ✅ **Phase 8 complete** (2026-11-26).
+**Interview:** 2026-12-08 · **Current phase:** 10, Final validation and interview preparation · **Status:** ✅ Phases 0–10 complete (2026-11-26). Interview materials: `docs/interview/`.
+
+## Phase 10: final validation, documentation and interview preparation (2026-11-26)
+
+### Validation (all run on 2026-11-26)
+| Check | Result |
+|---|---|
+| Final evaluation, run 5 (37 cases) | **37 of 37** on first scoring; privilege probes **13 of 13**; SQL suites 38/38 and 13/13; p50 13.7 s, p95 24.9 s |
+| CI suite | **163 passed** (clean clone, no `.env`) |
+| Live Snowflake tests | **14 passed** (2 paid tests skipped; covered by the evaluation) |
+| Semantic view vs Gold | **14 of 14** (re-run after the comment fix) |
+| Secret scan, tracked files | OK |
+| Secret scan, full git history (18 commits) | No real secrets, no secret-bearing files, no personal email. One test-dummy string and one localhost default, both reviewed. |
+| Markdown links | All relative links resolve |
+
+### Independent audit: findings fixed
+A separate reviewer audited the whole repo before the interview.
+| Severity | Finding | Fix |
+|---|---|---|
+| Critical | The incident audit hash covered only the payload, not who acted, when or in what order | Hash version 2 covers all of them, and SQL recomputes it from the columns. v1 rows are kept and verified by their own rule. **Proof:** editing an approver in a rolled-back transaction made `CHAIN_OK` FALSE. |
+| Critical | "Read-only role" was overstated (the role INSERTs into three log tables) | Wording is now "least privilege: no raw-data reads, no business-data writes, insert-only app logs" in the UI, README and SQL comments |
+| Important | Stale status lines; a misleading eval progression in the README; the semantic-view comment for `canceled_shipments` described the revenue rule; stale "PUBLIC" comments; the "enterprise AI agent" tagline | All corrected. The view comment was verified (the same 2,855 orders), redeployed and revalidated 14 of 14. |
+| Minor | `%USERPROFILE%` in PowerShell commands; a hardcoded local path; ADRs out of order; the "Live" chip shown even offline | Fixed (`$env:USERPROFILE`, project-root wording, ADRs sorted 001–027, a Live/Offline chip driven by the KPI load, with a test) |
+| Minor (documented, not changed) | Separation of duties compares self-declared names | Listed as a limitation; the production fix is SSO identities |
+
+### Deliverables
+| Deliverable | File |
+|---|---|
+| README | `README.md`, rewritten with problem, stack, data, pipeline, semantic layer, RAG, agent, evaluation, security, screenshots, setup, limitations and roadmap |
+| Architecture diagram | `docs/architecture.md` (Mermaid; also summarised in the README) |
+| Demo script (6½ min) | `docs/interview/demo_script.md` |
+| Technical Q&A (13 questions + follow-ups) | `docs/interview/technical_qa.md` |
+| Backup plan, verified outputs, offline walkthrough | `docs/interview/backup_plan.md` |
+| Screenshots | `docs/images/app_home.png`, `app_hybrid_answer.png`, `app_dashboard.png`, `app_incidents.png`, captured from the live app |
+| Evaluation report | `docs/evaluation_report.md` (generated, run 5) and `docs/evaluation_findings.md` (review, runs 1–5) |
+
+### Not done
+- No demo recording: there was no recorder in the build environment. Steps are in `backup_plan.md`.
+- No re-run of the full evaluation after the comment-only semantic-view fix; reconciliation was re-run instead.
 
 ## Phase 9: human-in-the-loop supplier-incident workflow, simulated (2026-11-26)
 Feature F from the brief. Design in ADR-027; details and how to run it in `docs/incident_workflow.md`.

@@ -36,6 +36,20 @@ Streamlit "Incidents" tab                       n8n 2.47.5 (Docker, 127.0.0.1:56
 | Failure is recorded | A failed draft or an unreachable n8n becomes an `ERROR` event; the incident is kept and can be resubmitted | Unit and UI tests |
 | Bounded input | Length limits, a severity enum, credential redaction, and callback details truncated to 500 characters | Unit and API tests |
 
+## Audit fix: the hash now covers who acted (Phase 10)
+**Problem:** an independent review before the interview found that hash version 1 covered only `PAYLOAD` (the event details). `ACTOR`, `ACTOR_TYPE`, `SEQ`, `INCIDENT_ID` and `CREATED_AT_UTC` were stored beside it but not hashed. So a privileged `UPDATE` of *who approved* would have left `CHAIN_OK = TRUE`.
+
+**Fix:** hash version 2 is `SHA-256(PREV_HASH ‖ incident | seq | type | actor | actor type | time | PAYLOAD)`, and `V_INCIDENT_CHAIN_CHECK` recomputes it from the columns in SQL. Rows written before the fix keep `HASH_VERSION = 1` and are checked by the v1 rule. Re-hashing them would mean rewriting the history the log exists to protect, so they stay as they are.
+
+**Proof (2026-11-26):**
+1. Inside a transaction, the developer role ran `UPDATE … SET ACTOR = 'Impostor'` on a v2 decision row.
+2. `CHAIN_OK` became FALSE (`BAD_HASHES = 1`).
+3. After `ROLLBACK` it was TRUE again.
+4. The live test confirmed that Snowflake's `TO_VARCHAR(…, 'YYYY-MM-DD"T"HH24:MI:SS.FF6')` matches Python byte for byte.
+5. Five v1 incidents and one v2 incident all verify.
+
+**What it still doesn't do:** the owner role could recompute every hash after editing. Tamper *evidence* against an owner needs the chain head anchored outside its control, for example a periodic export of the latest hash to a separate account or a WORM store. That's noted as a production step.
+
 ## Slack notifications (optional)
 The approver doesn't have to watch n8n: when an approval is needed, the workflow posts to a Slack channel.
 

@@ -1,7 +1,7 @@
 # Governed metric definitions
 
 **Scope:** the DataCo public sample (retail/e-commerce, 2015-01-01 → 2018-01-31). **These are not Worthington metrics or data.**
-**Implemented in:** `sql/30_gold/02_kpi_views.sql` (`SCC_DB.GOLD.V_KPI_*`). Phase 3 moves the same definitions into the Snowflake semantic view.
+**Implemented in:** `sql/30_gold/02_kpi_views.sql` (`SCC_DB.GOLD.V_KPI_*`). The same definitions are implemented in the semantic view `SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV` (Phase 3), reconciled 14 of 14.
 **Verified by:**
 - `sql/tests/test_phase2_model.sql` (38 tests)
 - independent pandas recomputation in `docs/reconciliation_report.md` (521 of 521 comparisons match)

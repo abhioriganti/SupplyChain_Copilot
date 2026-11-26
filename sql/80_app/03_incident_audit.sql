@@ -5,7 +5,8 @@
 -- Design (ADR-027):
 --   * Event-sourced: every step is one row; an incident's status is its latest event. Nothing is
 --     ever updated or deleted, so the runtime role gets INSERT on the table and SELECT on views only.
---   * Tamper-evident: EVENT_HASH = SHA-256(PREV_HASH || PAYLOAD), chained per incident.
+--   * Tamper-evident: EVENT_HASH = SHA-256(PREV_HASH || incident | seq | type | actor | actor type |
+--     time | PAYLOAD), chained per incident (hash version 2; version 1 rows covered PAYLOAD only).
 --     V_INCIDENT_CHAIN_CHECK recomputes the chain in SQL, independently of the Python writer.
 --   * Simulated: incidents are practice records about sample data. No email or supplier contact
 --     is ever sent; an approved action is recorded as ACTION_SIMULATED.
@@ -25,18 +26,24 @@ CREATE TABLE IF NOT EXISTS INCIDENT_AUDIT_LOG (
     CREATED_AT_UTC   TIMESTAMP_NTZ NOT NULL,
     PAYLOAD          VARCHAR       NOT NULL,   -- canonical JSON (sorted keys) of the event details
     PREV_HASH        VARCHAR       NOT NULL,   -- EVENT_HASH of SEQ-1, or 64 zeros for SEQ 1
-    EVENT_HASH       VARCHAR       NOT NULL,   -- SHA-256 hex of PREV_HASH || PAYLOAD
+    EVENT_HASH       VARCHAR       NOT NULL,   -- SHA-256 hex; what it covers depends on HASH_VERSION
     SIMULATED        BOOLEAN       NOT NULL,
+    HASH_VERSION     NUMBER(38,0)  DEFAULT 1,  -- 1: PREV_HASH||PAYLOAD; 2: also incident, seq, type, actor, actor type, time
     CONSTRAINT PK_INCIDENT_AUDIT_LOG PRIMARY KEY (EVENT_ID),
     CONSTRAINT UQ_INCIDENT_SEQ UNIQUE (INCIDENT_ID, SEQ)
 )
 COMMENT = 'Append-only, hash-chained audit log for SIMULATED supplier-quality incidents (Phase 9). Status = latest event.';
 
+-- Phase 10 audit fix: hash version 2 also covers who acted, when and in what order. Rows written
+-- before the fix keep HASH_VERSION = 1 and are verified by the v1 rule (history is not rewritten).
+ALTER TABLE INCIDENT_AUDIT_LOG ADD COLUMN IF NOT EXISTS HASH_VERSION NUMBER(38,0) DEFAULT 1;
+
 CREATE OR REPLACE VIEW V_INCIDENT_EVENTS
 COMMENT = 'Incident audit events with the payload parsed.'
 AS
 SELECT EVENT_ID, INCIDENT_ID, SEQ, EVENT_TYPE, ACTOR, ACTOR_TYPE, CREATED_AT_UTC,
-       PARSE_JSON(PAYLOAD) AS DETAILS, PAYLOAD, PREV_HASH, EVENT_HASH, SIMULATED
+       PARSE_JSON(PAYLOAD) AS DETAILS, PAYLOAD, PREV_HASH, EVENT_HASH, SIMULATED,
+       COALESCE(HASH_VERSION, 1) AS HASH_VERSION
 FROM INCIDENT_AUDIT_LOG;
 
 CREATE OR REPLACE VIEW V_INCIDENT_STATUS
@@ -68,14 +75,18 @@ CREATE OR REPLACE VIEW V_INCIDENT_CHAIN_CHECK
 COMMENT = 'Recomputes the SHA-256 chain per incident. CHAIN_OK = FALSE means a row was altered, removed or reordered.'
 AS
 WITH x AS (
-    SELECT INCIDENT_ID, SEQ, PREV_HASH, EVENT_HASH,
-           SHA2(PREV_HASH || PAYLOAD, 256) = EVENT_HASH                                   AS HASH_OK,
+    SELECT INCIDENT_ID, SEQ, PREV_HASH, EVENT_HASH, HASH_VERSION,
+           IFF(COALESCE(HASH_VERSION, 1) = 1,
+               SHA2(PREV_HASH || PAYLOAD, 256),
+               SHA2(PREV_HASH || INCIDENT_ID || '|' || SEQ::VARCHAR || '|' || EVENT_TYPE || '|' || ACTOR
+                    || '|' || ACTOR_TYPE || '|' || TO_VARCHAR(CREATED_AT_UTC, 'YYYY-MM-DD"T"HH24:MI:SS.FF6')
+                    || '|' || PAYLOAD, 256)) = EVENT_HASH                                 AS HASH_OK,
            COALESCE(LAG(EVENT_HASH) OVER (PARTITION BY INCIDENT_ID ORDER BY SEQ), REPEAT('0', 64))
                = PREV_HASH                                                               AS LINK_OK,
            SEQ = ROW_NUMBER() OVER (PARTITION BY INCIDENT_ID ORDER BY SEQ)               AS SEQ_OK
     FROM INCIDENT_AUDIT_LOG
 )
-SELECT INCIDENT_ID, COUNT(*) AS EVENTS,
+SELECT INCIDENT_ID, COUNT(*) AS EVENTS, MAX(COALESCE(HASH_VERSION, 1)) AS HASH_VERSION,
        COUNT_IF(NOT HASH_OK) AS BAD_HASHES, COUNT_IF(NOT LINK_OK) AS BAD_LINKS,
        COUNT_IF(NOT SEQ_OK) AS SEQ_GAPS,
        (BAD_HASHES = 0 AND BAD_LINKS = 0 AND SEQ_GAPS = 0) AS CHAIN_OK

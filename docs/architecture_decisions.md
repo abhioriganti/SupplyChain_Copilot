@@ -25,7 +25,7 @@ Short records of decisions that matter. Each one covers: context, the decision, 
 ## ADR-003: A key-pair SERVICE user, not a password
 **Status:** Accepted
 **Decision:** Scripts and the app authenticate as `SCC_SVC` (`TYPE = SERVICE`, so it has no password and cannot log in interactively), using an RSA key pair.
-- The private key lives in `%USERPROFILE%\.snowflake\keys\`, outside the repo; `config.py` refuses any key path inside the repo.
+- The private key lives in `$env:USERPROFILE\.snowflake\keys\` (PowerShell), outside the repo; `config.py` refuses any key path inside the repo.
 - The same key signs the JWTs for the REST API.
 **Alternatives:**
 - Password plus MFA: can't be automated and is a secret that tends to leak.
@@ -74,6 +74,20 @@ Short records of decisions that matter. Each one covers: context, the decision, 
 **Decision:** One shipment per order. Delivery KPIs are computed over distinct orders and never over lines. A line-level late rate would weight a 5-line order 5× and is wrong.
 **Tradeoffs:** Split shipments can't be represented, but the source has no such information.
 
+## ADR-009: Document access control in Cortex Search
+**Status:** Accepted (design constraint)
+**Context:** Snowflake docs (checked 2026-11-25) say Cortex Search runs with the **owner's rights**. Row access and masking policies on the source table are **not** applied when querying, unless the service is created with `INHERIT_DATA_GOVERNANCE_POLICIES = TRUE`, and that setting is enforced only for specific SQL functions.
+**Decision:** All v1 documents are public, so `ACCESS_GROUP = 'public'`. The enforced boundary is USAGE on the search service, held per role. An `ACCESS_GROUP` filter sent by the client is **not** treated as a security control.
+**Production path:** separate services per sensitivity tier, or policy inheritance, after checking that it covers the agent's query path.
+
+## ADR-010: Use SQL over a semantic view for metrics, not embeddings
+**Status:** Accepted
+**Why:**
+- KPIs such as late-delivery rate are exact aggregates over hundreds of thousands of rows. Vector retrieval returns *similar text*, not *correct numbers*.
+- The semantic view fixes each metric's numerator, denominator, filters and join paths once.
+- Cortex Analyst generates SQL against those definitions, and the SQL is shown to the user so they can audit it.
+- Embeddings are used only where similarity is the right tool: policy and document text.
+
 ## ADR-011: Time trends are confounded by market rotation
 **Status:** Accepted (design constraint)
 **Evidence:** 26 of 37 months contain orders from a single market, and the dataset cycles LATAM → Europe → Pacific Asia → USCA → mixed → LATAM → Europe → Pacific Asia. See profiling_report §8.
@@ -93,6 +107,12 @@ It changes neither row count nor values. Eligibility, late rate, revenue choice 
 **Alternatives:** Build the orders and products tables in pandas.
 **Why not:** It would create two places where the business logic is defined, and those would drift apart. Governed metrics should have one home.
 **Tradeoffs:** The SQL layer must re-establish the grain, but the Phase 1 checks already prove that it's safe.
+
+## ADR-013: Parse failures abort; source quirks are flagged
+**Status:** Accepted
+**Decision:**
+- Any unparseable number or date, an unknown category value, a duplicate key or a broken identity **aborts** the run with a message naming the failing column. Nothing is silently coerced or dropped.
+- Known, explained quirks are kept and flagged as warnings: Same Day timestamps, canceled-but-late lines, negative profit, and a category name that isn't unique.
 
 ## ADR-014: No separate FACT_SHIPMENTS; FACT_ORDERS is the shipment fact
 **Status:** Accepted (2026-11-25)
@@ -369,23 +389,3 @@ Totals vary run to run on the service side.
   - *Slack "send and wait" approval in the chat.* The approver identity would come from the Slack account, so separation of duties would need rework and re-testing.
   - *Email.* It needs SMTP credentials.
 - **Evidence:** a live run with a message, an approval from its link and an intact chain.
-
-## ADR-013: Parse failures abort; source quirks are flagged
-**Status:** Accepted
-**Decision:**
-- Any unparseable number or date, an unknown category value, a duplicate key or a broken identity **aborts** the run with a message naming the failing column. Nothing is silently coerced or dropped.
-- Known, explained quirks are kept and flagged as warnings: Same Day timestamps, canceled-but-late lines, negative profit, and a category name that isn't unique.
-
-## ADR-009: Document access control in Cortex Search
-**Status:** Accepted (design constraint)
-**Context:** Snowflake docs (checked 2026-11-25) say Cortex Search runs with the **owner's rights**. Row access and masking policies on the source table are **not** applied when querying, unless the service is created with `INHERIT_DATA_GOVERNANCE_POLICIES = TRUE`, and that setting is enforced only for specific SQL functions.
-**Decision:** All v1 documents are public, so `ACCESS_GROUP = 'public'`. The enforced boundary is USAGE on the search service, held per role. An `ACCESS_GROUP` filter sent by the client is **not** treated as a security control.
-**Production path:** separate services per sensitivity tier, or policy inheritance, after checking that it covers the agent's query path.
-
-## ADR-010: Use SQL over a semantic view for metrics, not embeddings
-**Status:** Accepted
-**Why:**
-- KPIs such as late-delivery rate are exact aggregates over hundreds of thousands of rows. Vector retrieval returns *similar text*, not *correct numbers*.
-- The semantic view fixes each metric's numerator, denominator, filters and join paths once.
-- Cortex Analyst generates SQL against those definitions, and the SQL is shown to the user so they can audit it.
-- Embeddings are used only where similarity is the right tool: policy and document text.

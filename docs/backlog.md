@@ -1,13 +1,13 @@
 # Backlog: known limitations and suggested improvements
 
-This is a consolidated list from Phases 0–8, so the work can be picked up later. The details and evidence for each item are in `docs/project_progress.md`, `docs/architecture_decisions.md` and the phase reports.
+This is a consolidated list from Phases 0–10, so the work can be picked up later. The details and evidence for each item are in `docs/project_progress.md`, `docs/architecture_decisions.md` and the phase reports.
 
-## State at end of Phase 8 (2026-11-26)
+## Current state (2026-11-26, Phase 10)
 
 | Area | Status |
 |---|---|
 | Data | DataCo loaded through Bronze, Silver and Gold. 38 SQL tests; 521/521 values reconcile independently. |
-| Semantic view | `SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV`, now with a quarter dimension. Matches Gold on 9/9 checks; Analyst passes 9/9 NL tests. |
+| Semantic view | `SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV`, 20 metrics, 24 dimensions. Matches Gold on 14/14 checks; Analyst passes 9/9 NL tests. |
 | Documents | 152 chunks; 13 SQL tests pass; every word in every chunk verified to appear on its cited page |
 | Search | `SCC_DB.AI.SUPPLIER_DOCS_SEARCH`: hit@1 96.7%, hit@5 100%, MRR 0.983 |
 | Agent | `SCC_DB.AI.SUPPLY_CHAIN_COPILOT`, runs as the read-only `SCC_APP_SVC` user. Evaluation run 4: 37/37 after correcting the evaluator (35/37 on first scoring). |
@@ -35,6 +35,8 @@ This is a consolidated list from Phases 0–8, so the work can be picked up late
 | 9 | Per-user document access (separate search services or policy inheritance) | Cortex Search uses owner's rights; ACCESS_GROUP isn't a security boundary | M | ADR-009 |
 | 10 | ~~Revoke CORTEX_USER and USE AI FUNCTIONS from PUBLIC~~ **done 2026-11-26**; verified with `SHOW GRANTS` and eval run 4 | Was granted to PUBLIC by default | — | Phase 0, ADR-025 |
 | 11 | Orchestrated pipeline (Tasks or dbt) instead of a command sequence | Fine for a static source; production needs scheduling and lineage | M | Phase 2 |
+| 13 | Anchor the incident audit-chain head outside the owner role (for example a periodic export of the latest hash to a separate account or WORM storage) | Hash v2 detects edits by anyone who doesn't recompute the chain; the owner role could recompute it | S | Phase 10 audit |
+| 14 | A/B the orchestration model (`auto` vs `claude-sonnet-5-5`) on the 37-case suite | Latency is still p95 about 25 s | S | Phase 10 |
 | 12 | ~~n8n supplier-incident workflow~~ **done 2026-11-26 (Phase 9)**: human approval, separation of duties, hash-chained append-only audit log (`docs/incident_workflow.md`). Still open: SSO identities, a live Reject/Timeout run. | Original "Feature F" | — | Project brief, ADR-027 |
 
 ## Known limitations (accepted; mention honestly in the interview)

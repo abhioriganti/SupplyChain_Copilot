@@ -432,3 +432,12 @@ def test_feedback_is_saved_once():
     assert fb, "feedback widget not rendered"
     fb[0].set_value(1).run()
     assert len(saved) == 1 and saved[0]["RATING"] == 1
+
+
+def test_offline_state_is_honest():
+    """Phase 10 audit: the 'Live' chip and green status were shown even when Snowflake was down."""
+    at = _app(data=FakeData(fail=True))
+    at.run()
+    html = " ".join(m.value for m in at.markdown)
+    assert "Offline" in html and 'scc-chip live"' not in html
+    assert "scc-unknown" in html and "unavailable" in html

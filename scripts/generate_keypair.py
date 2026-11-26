@@ -3,7 +3,7 @@
 Run this yourself (it creates a credential):
     .venv\\Scripts\\python scripts\\generate_keypair.py
 
-- Private key: %USERPROFILE%\\.snowflake\\keys\\scc_svc_rsa_key.p8 (never printed, never committed)
+- Private key: $env:USERPROFILE\\.snowflake\\keys\\scc_svc_rsa_key.p8 (never printed, never committed)
 - Prints only the PUBLIC key (single line) and its fingerprint, which are safe to paste into Snowsight.
 """
 

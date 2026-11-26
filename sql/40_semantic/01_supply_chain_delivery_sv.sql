@@ -136,7 +136,7 @@ CREATE OR REPLACE SEMANTIC VIEW SUPPLY_CHAIN_DELIVERY_SV
       COMMENT = 'Eligible shipments delivered on schedule or early.',
     orders.canceled_shipments AS SUM(IFF(orders.IS_SHIPMENT_ELIGIBLE, 0, 1))
       WITH SYNONYMS = ('cancelled shipments', 'canceled orders')
-      COMMENT = 'Shipments canceled (order status CANCELED or SUSPECTED_FRAUD). Excluded from delivery rates.',
+      COMMENT = 'Shipments with delivery status Shipping canceled (IS_SHIPMENT_ELIGIBLE = FALSE). Excluded from delivery rates. Revenue uses a separate rule (order status not CANCELED or SUSPECTED_FRAUD); the two flag the same 2,855 orders in this data but are defined independently.',
     orders.late_delivery_rate AS orders.late_shipments::FLOAT / NULLIF(orders.eligible_shipments, 0)
       WITH SYNONYMS = ('late rate', 'late delivery percentage', 'percent late', 'delay rate', 'late shipment rate', 'delayed shipment rate')
       COMMENT = 'GOVERNED: late_shipments / eligible_shipments, per shipment, canceled excluded. Fraction between 0 and 1.',

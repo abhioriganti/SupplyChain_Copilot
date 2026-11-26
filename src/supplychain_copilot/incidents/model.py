@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -102,6 +102,11 @@ class Event:
     event_hash: str
     simulated: bool = True
     details: dict[str, Any] = field(default_factory=dict, compare=False)
+    hash_version: int = 2
+
+
+HASH_VERSION = 2
+TS_FORMAT = "%Y-%m-%dT%H:%M:%S.%f"  # = Snowflake TO_VARCHAR(ts, 'YYYY-MM-DD"T"HH24:MI:SS.FF6')
 
 
 def canonical(details: dict[str, Any]) -> str:
@@ -109,7 +114,41 @@ def canonical(details: dict[str, Any]) -> str:
 
 
 def chain_hash(prev_hash: str, payload: str) -> str:
+    """Hash version 1 (Phase 9 rows): covered the payload only, not who acted or when."""
     return hashlib.sha256((prev_hash + payload).encode("utf-8")).hexdigest()
+
+
+def hash_material(
+    incident_id: str,
+    seq: int,
+    event_type: str,
+    actor: str,
+    actor_type: str,
+    created_at_utc: datetime,
+    payload: str,
+) -> str:
+    """Hash version 2: every column that says who did what, when, and in what order.
+    Added after the Phase 10 audit found v1 left ACTOR and the timestamp unprotected."""
+    return "|".join(
+        [
+            incident_id,
+            str(seq),
+            event_type,
+            actor,
+            actor_type,
+            created_at_utc.strftime(TS_FORMAT),
+            payload,
+        ]
+    )
+
+
+def event_hash(prev_hash: str, e: Event) -> str:
+    if e.hash_version == 1:
+        return chain_hash(prev_hash, e.payload)
+    material = hash_material(
+        e.incident_id, e.seq, e.event_type, e.actor, e.actor_type, e.created_at_utc, e.payload
+    )
+    return hashlib.sha256((prev_hash + material).encode("utf-8")).hexdigest()
 
 
 def status_of(history: list[Event]) -> str | None:
@@ -152,7 +191,7 @@ def build_event(
     incident_id = incident_id or f"INC-{uuid.uuid4().hex[:10].upper()}"
     payload = canonical({**details, "event_type": event_type, "simulated": True})
     prev = history[-1].event_hash if history else GENESIS
-    return Event(
+    draft = Event(
         event_id=str(uuid.uuid4()),
         incident_id=incident_id,
         seq=len(history) + 1,
@@ -162,9 +201,11 @@ def build_event(
         created_at_utc=(now or datetime.now(UTC)).replace(tzinfo=None),
         payload=payload,
         prev_hash=prev,
-        event_hash=chain_hash(prev, payload),
+        event_hash="",
         details=json.loads(payload),
+        hash_version=HASH_VERSION,
     )
+    return replace(draft, event_hash=event_hash(prev, draft))
 
 
 def verify_chain(history: list[Event]) -> list[str]:
@@ -175,7 +216,7 @@ def verify_chain(history: list[Event]) -> list[str]:
             problems.append(f"seq {e.seq} at position {i}")
         if e.prev_hash != prev:
             problems.append(f"seq {e.seq}: broken link")
-        if chain_hash(e.prev_hash, e.payload) != e.event_hash:
-            problems.append(f"seq {e.seq}: payload does not match hash")
+        if event_hash(e.prev_hash, e) != e.event_hash:
+            problems.append(f"seq {e.seq}: row does not match its hash (v{e.hash_version})")
         prev = e.event_hash
     return problems

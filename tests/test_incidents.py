@@ -341,3 +341,27 @@ def test_secret_scanner_detects_slack_webhooks_and_tokens():
     assert mod.PATTERNS["Slack webhook URL"].search(hook)
     assert mod.PATTERNS["Slack token"].search("xox" + "b-123456789012-abcdef")
     assert not mod.PATTERNS["Slack webhook URL"].search("SCC_SLACK_WEBHOOK_URL=")
+
+
+def test_hash_v2_covers_actor_time_and_order_and_v1_rows_still_verify():
+    """Phase 10 audit: v1 hashed only the payload, so editing ACTOR (who approved) went undetected."""
+    from dataclasses import replace
+    from datetime import timedelta
+
+    s = IncidentService(InMemoryStore())
+    inc = s.open(_input()).incident_id
+    s.record_workflow_event(inc, model.SUBMITTED, "n8n", {})
+    s.record_workflow_event(inc, model.APPROVED, "Sam Approver", {"comment": "ok"})
+    h = s.store.history(inc)
+    assert all(e.hash_version == 2 for e in h) and model.verify_chain(h) == []
+    for tampered in (
+        replace(h[2], actor="Someone Else"),
+        replace(h[2], actor_type="workflow"),
+        replace(h[2], created_at_utc=h[2].created_at_utc + timedelta(seconds=1)),
+        replace(h[2], event_type="REJECTED"),
+    ):
+        assert model.verify_chain([h[0], h[1], tampered]), tampered
+    # a v1 row (payload-only hash, as written in Phase 9) still verifies by its own rule
+    v1 = replace(h[0], hash_version=1, event_hash=model.chain_hash(model.GENESIS, h[0].payload))
+    assert model.verify_chain([v1]) == []
+    assert not model.verify_chain([replace(v1, actor="Someone Else")])  # v1 limitation, documented

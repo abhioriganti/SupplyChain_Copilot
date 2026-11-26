@@ -138,6 +138,7 @@ div[class*="st-key-cap_"] .stButton button:hover { background:#ECF7F9; border-co
 .scc-row b { color:#334155; font-weight:600; }
 .scc-row span { color:#64748B; text-align:right; }
 .scc-ok::before { content:"●"; color:#10B981; margin-right:.35rem; font-size:.7rem; }
+.scc-unknown::before { content:"●"; color:#CBD5E1; margin-right:.35rem; font-size:.7rem; }
 </style>
 """
 
@@ -150,18 +151,22 @@ def _md_bold_to_html(text: str) -> str:
     return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html.escape(text))
 
 
-def header() -> None:
-    """Compact app bar plus a slim, always-visible data notice."""
+def header(live: bool = True) -> None:
+    """Compact app bar plus a slim, always-visible data notice. `live`: KPIs loaded from Snowflake."""
     inject_styles()
+    status = (
+        '<span class="scc-chip live"><span class="scc-dot"></span>Live</span>'
+        if live
+        else '<span class="scc-chip">⚠️ Offline</span>'
+    )
     st.markdown(
         '<div class="scc-appbar"><div class="scc-brand"><div class="scc-logo">SC</div><div>'
         '<div class="scc-name">SupplyChain Copilot</div>'
         '<div class="scc-tag">Supply-chain analytics and supplier knowledge · Snowflake Cortex</div>'
-        '</div></div><div class="scc-chips">'
-        '<span class="scc-chip live"><span class="scc-dot"></span>Live</span>'
+        f'</div></div><div class="scc-chips">{status}'
         '<span class="scc-chip">🧭 Governed metrics</span>'
         '<span class="scc-chip">📄 Cited sources</span>'
-        '<span class="scc-chip">🔒 Read-only role</span>'
+        '<span class="scc-chip">🔒 Least-privilege role</span>'
         "</div></div>",
         unsafe_allow_html=True,
     )
@@ -254,15 +259,16 @@ def welcome() -> str | None:
 
 
 def system_status(k: Kpis | None) -> None:
-    docs = f"{k.documents} docs · {k.chunks}" if k else "3 docs"
+    """Configured components; green only when live KPIs loaded (k), otherwise shown as unknown."""
     rows = [
         ("Agent", "2 tools"),
         ("Semantic view", "20 metrics"),
-        ("Search", docs),
-        ("Runtime role", "Read-only"),
+        ("Search", f"{k.documents} docs · {k.chunks}" if k else "unavailable"),
+        ("Runtime role", "Least privilege"),
     ]
+    cls = "scc-ok" if k else "scc-unknown"
     body = "".join(
-        f'<div class="scc-row"><b class="scc-ok">{html.escape(a)}</b><span>{html.escape(b)}</span></div>'
+        f'<div class="scc-row"><b class="{cls}">{html.escape(a)}</b><span>{html.escape(b)}</span></div>'
         for a, b in rows
     )
     st.markdown(

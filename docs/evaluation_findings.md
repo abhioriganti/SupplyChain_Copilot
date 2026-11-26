@@ -122,9 +122,29 @@ H1 is also a small genuine **side effect of the length limit**: the facts are ri
 
 These come from one query over the log. The run-3 row in the monitoring table above (15.0 / 32.1 s) was computed earlier over all 34 requests with a different percentile method, so compare within this table only. Each run is one sample.
 
+## Run 5 (`eval-20261126T191101`): 37 of 37 passed on first scoring (final validation, Phase 10)
+
+This run used the current code: backlog fixes, the red-team evaluator fix (negation list) and the Phase 9 incident workflow.
+- **No evaluator corrections were needed.**
+- Privilege probes passed **13 of 13**, including 5 new probes for the append-only incident audit log. SQL suites passed 38 of 38 and 13 of 13.
+- Every agent SQL statement went through the semantic view.
+- Latency (request log, all 37 cases): p50 13.7 s, p95 24.9 s; average output tokens 890.
+
+| Run | Cases | Passed (first scoring) | p50 / p95 latency |
+|---|---|---|---|
+| 1 | 33 | 30 | 14.2 / 30.5 s |
+| 2 | 33 | 33 (review then found U4) | 14.5 / 29.3 s |
+| 3 | 34 | 34 | 14.5 / 32.0 s |
+| 4 | 37 | 35 (37 after two evaluator corrections) | 13.4 / 25.1 s |
+| **5** | **37** | **37** | **13.7 / 24.9 s** |
+
+(One query over `APP.AGENT_REQUEST_LOG` for all runs, so the rows are comparable with each other.)
+
+**Change after run 5:** the semantic-view comment on `canceled_shipments` was corrected. It had described the revenue rule (order status) instead of the shipment rule (delivery status); both flag the same 2,855 orders. This is a description fed to Cortex Analyst, not a definition change. `validate_view` still passes 14 of 14 afterwards, but the eval was not re-run for it.
+
 ## What the evaluation does and doesn't establish
 
-- **Does:** on 34 questions designed for this corpus, the agent:
+- **Does:** on 37 questions designed for this corpus, the agent:
   - gives SQL-correct numbers that reconcile with independent re-execution
   - cites the expected pages
   - routes to the right tools

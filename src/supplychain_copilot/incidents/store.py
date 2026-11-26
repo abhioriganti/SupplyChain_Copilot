@@ -16,7 +16,7 @@ from supplychain_copilot.incidents.model import Event
 
 COLUMNS = (
     "EVENT_ID, INCIDENT_ID, SEQ, EVENT_TYPE, ACTOR, ACTOR_TYPE, CREATED_AT_UTC, PAYLOAD, "
-    "PREV_HASH, EVENT_HASH, SIMULATED"
+    "PREV_HASH, EVENT_HASH, SIMULATED, HASH_VERSION"
 )
 
 
@@ -85,7 +85,7 @@ class SnowflakeIncidentStore:
         with self._session() as conn:
             conn.cursor().execute(
                 f"INSERT INTO SCC_DB.APP.INCIDENT_AUDIT_LOG ({COLUMNS}) "  # noqa: S608 - constant columns; values bound
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     event.event_id,
                     event.incident_id,
@@ -98,6 +98,7 @@ class SnowflakeIncidentStore:
                     event.prev_hash,
                     event.event_hash,
                     event.simulated,
+                    event.hash_version,
                 ),
             )
 
@@ -134,6 +135,7 @@ def _event_from_row(r: dict[str, Any]) -> Event:
         event_hash=r["EVENT_HASH"],
         simulated=bool(r["SIMULATED"]),
         details=json.loads(r["PAYLOAD"]),
+        hash_version=int(r.get("HASH_VERSION") or 1),
     )
 
 

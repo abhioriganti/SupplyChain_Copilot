@@ -1,59 +1,186 @@
 ﻿# SupplyChain Copilot
 
-**An enterprise AI agent for supply-chain analytics and supplier knowledge retrieval, built on Snowflake Cortex.**
+**A portfolio demonstration of governed, natural-language supply-chain analytics and supplier-document Q&A, built on Snowflake Cortex.**
 
-> Independent portfolio project. It uses only **public** data: the DataCo retail/e-commerce sample dataset (CC BY 4.0) and publicly published supplier and annual-report documents. It is not a Worthington Enterprises product and contains no company-internal data. See [docs/data_sources.md](docs/data_sources.md).
+> **Independent public-data project. It is not a Worthington Enterprises product and contains no company data.**
+> - Delivery metrics come from the public **DataCo Smart Supply Chain** sample dataset (retail/e-commerce, 2015–2018, CC BY 4.0). They are **not** Worthington figures.
+> - Procedures and disclosures come from three documents Worthington publishes publicly.
+>
+> Full provenance is in [docs/data_sources.md](docs/data_sources.md).
 
-## What it does
-- **Governed analytics:** natural-language questions → Cortex Analyst → SQL over a Snowflake **semantic view**, so every KPI has a single definition. 521 of 521 values reconcile independently, the view matches Gold on 14 of 14 checks (including governed margin, discount and order value), and Analyst passes 9 of 9 NL tests.
-- **Document Q&A:** Cortex Search over public supplier-quality, code-of-conduct and annual-report PDFs, with page-level citations. hit@1 is 97% and hit@5 is 100% on a labelled set, and every word in a chunk is verified to appear on its cited page.
-- **Hybrid agent:** a Cortex Agent picks one tool or both, and keeps measured data separate from policy guidance. 12 of 12 agent test cases pass, including unsafe and unsupported questions.
-- **Trust:** a dedicated read-only runtime user (secondary roles disabled), visible SQL, citations, evaluation suites and SQL data-quality tests.
-- **App:** a Streamlit UI with live KPIs, streamed chat, verified results, a sources panel, charts and feedback.
-- **Evaluated:** a 37-case suite (structured, document, hybrid, ambiguous, unsupported, security, error handling) with SQL ground truth.
-  - Over four runs it went 30/33 → 34/34 → 37/37, fixing the real defects it found and correcting evaluator mistakes with regression tests.
-  - Shorter answers cut p95 latency from 32 to 25 s.
-  - See [docs/evaluation_findings.md](docs/evaluation_findings.md).
-  - Every request is logged to a monitoring table.
-- **Human-in-the-loop automation (simulated):** the Copilot drafts the applicable supplier-quality procedures for an incident, and an **n8n** workflow notifies the approver in **Slack** and pauses for a human decision. The approver must differ from the requester, and every step is written to an append-only, SHA-256-chained audit log in Snowflake, checked in SQL. Nothing is ever sent. See [docs/incident_workflow.md](docs/incident_workflow.md).
-- **Red-teamed:** 7 indirect prompt-injection attacks planted in a sandbox copy of the document corpus (instruction override, exfiltration, phishing, destructive SQL, a fake causal claim, hidden markup and a spoofed manual section). The production agent configuration resisted all 6 instruction attacks and rejected the spoof; see [docs/redteam_findings.md](docs/redteam_findings.md).
-- **Cost and access:** Cortex is granted explicitly to the two project roles (revoked from PUBLIC). An account budget alerts on spend, and the warehouse has a resource monitor.
+![SupplyChain Copilot home screen: app bar, governed KPI cards and the three ways to ask](docs/images/app_home.png)
 
-## Architecture
+---
+
+## 1. The business problem
+Supply-chain questions usually need two kinds of evidence that live in different places:
+- **Numbers:** "Which regions have the highest late-delivery rate?" These live in the warehouse. Today, answering means waiting for someone to write SQL or build a dashboard, and different teams often compute the same KPI differently.
+- **Procedures:** "What must a supplier do after a non-conformance, and by when?" These live in PDFs that few people read end to end.
+
+The hardest questions need both: *"Where are we late, and what would the supplier manual require if a quality issue were confirmed?"* A chatbot that guesses either half is worse than no chatbot.
+
+**Goal:** let a business user ask in plain English and get answers they can trust:
+- numbers from **one governed definition**, with the SQL shown
+- procedures **cited to the page**
+- the two kept clearly separate
+- an honest "the data can't show that" when the question goes beyond the evidence
+
+## 2. What it does
+| Capability | How | Evidence |
+|---|---|---|
+| Governed analytics | Cortex Analyst writes SQL against a Snowflake **semantic view** with 20 governed metrics | View matches independently computed Gold figures on **14 of 14** checks; Analyst **9 of 9** NL tests; 521 of 521 values reconcile from raw data |
+| Document Q&A (RAG) | Cortex Search over 152 heading-aware chunks of 3 public PDFs | **hit@1 96.7%**, hit@5 100%, MRR 0.983 on 30 labelled questions; every chunk word verified to appear on its cited page |
+| Hybrid answers | One Cortex Agent with two tools; it routes by the evidence needed | Final evaluation **37 of 37** (run 5), with SQL ground truth |
+| Safety | Least-privilege runtime identity, grounded-answer rules, no self-computed numbers | 13 of 13 privilege probes; red-team **6 of 6** planted-instruction attacks resisted |
+| Human in the loop | n8n approval workflow with Slack notification and separation of duties (simulated) | Hash-chained audit log; tampering with the approver detected in SQL |
+| Transparency | Every answer shows the tools used, the latency, the SQL and its results, and the cited pages | Request log and monitoring view |
+
+![A hybrid answer: governed delivery figures with the definition stated, procedures cited to SQAM pages, and source panel](docs/images/app_hybrid_answer.png)
+
+## 3. Architecture
+```mermaid
+flowchart LR
+    CSV["DataCo CSV<br/>180,519 lines"] -->|Python ingest + validation| BR[BRONZE] --> SI[SILVER] --> GO["GOLD<br/>1 row = 1 shipment"] --> SV["Semantic view<br/>20 governed metrics"]
+    PDF["3 public PDFs"] -->|PyMuPDF, heading-aware chunks| DC["DOCS chunks<br/>page + SHA-256"] --> CS["Cortex Search"]
+    SV --> AN["Cortex Analyst"] -->|delivery_analytics| AG["Cortex Agent"]
+    CS -->|supplier_documents| AG
+    AG <-->|"REST, streamed · least-privilege user"| UI["Streamlit UI"]
+    UI --> N8N["n8n approval<br/>+ Slack notify"] --> API["Incident API"] --> LOG["Append-only,<br/>hash-chained audit log"]
 ```
-DataCo CSV → Python ingest → BRONZE → SILVER → GOLD → Semantic View → Cortex Analyst ┐
-Public PDFs → PyMuPDF → heading-aware chunks → DOCS table → Cortex Search ───────────┤→ Cortex Agent → Streamlit
-```
-Design decisions: [docs/architecture_decisions.md](docs/architecture_decisions.md) · Agent routing and controls: [docs/agent_architecture.md](docs/agent_architecture.md) · Progress: [docs/project_progress.md](docs/project_progress.md)
+The full diagram, with security, evaluation and cost controls and a step-by-step request flow, is in **[docs/architecture.md](docs/architecture.md)**. Every design decision is recorded with its alternatives and tradeoffs in [docs/architecture_decisions.md](docs/architecture_decisions.md) (ADR-001 to ADR-027).
 
-## Setup (Windows PowerShell)
+## 4. Technology stack
+| Layer | Choice | Why |
+|---|---|---|
+| Warehouse | Snowflake (Enterprise trial), X-Small warehouse | One platform for data, governance, AI and access control |
+| Semantic layer | Native Snowflake **semantic view** | Metric definitions live once, next to the data, and Analyst is constrained to them |
+| NL-to-SQL | **Cortex Analyst** | Generates SQL from the semantic view; the SQL is shown to the user |
+| Retrieval | **Cortex Search** (arctic-embed-m-v1.5, hybrid + rerank) | Managed hybrid search with no separate vector database to secure |
+| Orchestration | **Cortex Agent** (model `auto`) | Tool routing and grounding rules in one governed object |
+| App | Streamlit 1.67 (local) | Fast to build, easy to test (`AppTest`) |
+| Automation | n8n 2.47.5 (Docker), FastAPI callback API, Slack incoming webhook | Human approval without giving the workflow tool database credentials |
+| Engineering | Python 3.12, pytest, Ruff, GitHub Actions (secret scan, lint, tests) | |
+
+## 5. Public data sources
+| Source | Use | Licence and provenance |
+|---|---|---|
+| DataCo Smart Supply Chain (Mendeley Data) | Orders, shipments, delivery status, revenue | CC BY 4.0. Retail/e-commerce, **not** manufacturing. PII columns dropped at ingest. |
+| Worthington Supplier Quality Assurance Manual (rev. 2025-10-23) | Quality procedures, corrective-action deadlines | Public PDF; URL, version, page scope and SHA-256 recorded |
+| Worthington Supplier Code of Conduct (June 2025) | Supplier responsibilities, reporting | Public PDF; as above |
+| Worthington FY2026 Annual Report (incl. Form 10-K) | Disclosed supply-chain risks | Public SEC filing; as above |
+
+## 6. Data-processing pipeline
+1. **Profile and validate.** `ingestion/` profiles the CSV, enforces a typed schema, and **aborts** on unparseable values or duplicate keys. Known quirks are flagged, not silently fixed (ADR-013).
+2. **Bronze:** sanitised lines with load lineage.
+3. **Silver:** typed, validated lines, latest successful load only.
+4. **Gold:** `FACT_ORDERS` has **one row per order, which is one shipment**, so delivery metrics can't double-count lines. `FACT_ORDER_LINES` holds revenue. Product and region dimensions complete the model.
+5. **Tests:** 38 SQL data-quality tests on the model; 521 of 521 KPI values re-derived independently from raw data ([docs/reconciliation_report.md](docs/reconciliation_report.md)).
+
+## 7. Semantic layer
+- **Single definitions:** the late-delivery rate is late ÷ eligible shipments, with canceled excluded. Revenue is net sales excluding canceled and fraud orders. Margin, discount, average order value and customer count are also governed.
+- **No double counting:** when an order-level metric is grouped by product, Snowflake **deduplicates** the many-to-many path. A naive join would inflate revenue **3.49×**; the view returns the correct figure, and a test checks it.
+- **Guard-rails for the model:** synonyms, business-rule comments, `AI_SQL_GENERATION` and `AI_QUESTION_CATEGORIZATION` instructions, and 4 steward-verified queries.
+- **Data caveats exposed, not hidden:** 26 of 37 months contain a single market, so monthly "trends" mostly reflect market mix. The agent is told to say so.
+
+Details: [docs/semantic_layer.md](docs/semantic_layer.md) · [docs/metric_definitions.md](docs/metric_definitions.md) · [docs/business_glossary.md](docs/business_glossary.md)
+
+## 8. RAG architecture
+- **Extraction:** PyMuPDF, heading-aware chunks that never cross a section, tables kept intact, and provenance per chunk (document, section path, PDF page, printed page, SHA-256). Two image-only pages are documented, not OCR'd.
+- **Index:** Cortex Search on title + section + text, with `CHUNK_ID` as the key and a human-readable citation label.
+- **Evaluation:** 30 labelled questions. Hybrid search with the reranker was chosen over keyword-only (hit@1 73%) and vector-only (93%) ([docs/retrieval_eval_report.md](docs/retrieval_eval_report.md)).
+- **Injection resistance:** a sandbox red-team planted 7 attacks next to the real chunks, including instruction override, credential phishing, destructive SQL and a spoofed manual section. The agent followed none of them and usually warned the user ([docs/redteam_findings.md](docs/redteam_findings.md)).
+
+## 9. Agent orchestration
+- **One agent, two tools:**
+  - `delivery_analytics` (Analyst) for any number
+  - `supplier_documents` (Search) for procedures and disclosures
+  - both for hybrid questions, with the results labelled separately
+- **Grounding rules,** each added because evaluation found the failure:
+  - report tool numbers as returned, with no self-computed sums, margins or forecasts
+  - never imply that late deliveries prove quality problems
+  - cite document, section and page
+  - say "not found" rather than fill a gap
+  - never reveal configuration or internal object names, even in error messages
+- **Streaming responses and a per-session answer cache.** Typical latency is p50 13.7 s and p95 24.9 s (run 5).
+
+Details: [docs/agent_architecture.md](docs/agent_architecture.md)
+
+## 10. Evaluation
+| Suite | Result |
+|---|---|
+| End-to-end evaluation, 37 cases: structured, document, hybrid, ambiguous, unsupported, security, error handling; SQL ground truth computed at run time | **Run 5: 37 of 37** on first scoring. Runs 1–4: 30/33 → 33/33 → 34/34 → 35/37 (37/37 after correcting two evaluator false negatives). Each failure was classified as a real defect or an evaluator error, and fixed with a regression test. |
+| Governance checks on every case | All SQL via the semantic view; no write SQL; no leak of credentials or internal names; no causal supplier claim; flagged numbers reviewed by a human |
+| Privilege probes (runtime role) | 13 of 13 as expected |
+| Red-team (retrieved-document injection) | 6 of 6 resisted; poisoning case rejected |
+| Retrieval | hit@1 96.7%, hit@5 100%, MRR 0.983 |
+| Automated tests | 163 unit, UI and logic tests (CI) + 14 live Snowflake tests |
+
+The full review, including what the evaluation **does not** establish, is in [docs/evaluation_findings.md](docs/evaluation_findings.md).
+
+## 11. Security
+- **Least-privilege runtime identity.** The dedicated user `SCC_APP_SVC` holds only `SCC_APP_ROLE`, with secondary roles disabled. The role:
+  - **cannot read** Bronze, Silver or Gold tables
+  - **cannot modify** any business data
+  - can only use the semantic view, the search service and the agent
+  - can **INSERT** into three app log tables (feedback, request log, incident audit)
+
+  A secondary-roles privilege leak was found and fixed in Phase 6 (ADR-021).
+- **Defence in depth.** Even if a prompt got the agent to attempt destructive SQL, the role would be denied. The red-team tried this (R4).
+- **Secrets.** Key-pair auth, with private keys outside the repo. `.env` is gitignored. The CI secret scan covers private keys, JWTs, credential assignments, GitHub and Slack tokens, and Slack webhooks. A full-history scan (all commits) found no real secrets.
+- **Cortex access** is granted explicitly and revoked from PUBLIC. An account budget alerts on spend, and the warehouse has a 25-credit resource monitor.
+- **Audit:** append-only incident log, SHA-256 chained over who, what, when and order, and verified in SQL. Tampering with an approver flips the check to FALSE.
+
+## 12. Screenshots
+| Delivery dashboard | Simulated incident workflow |
+|---|---|
+| ![Dashboard: late-delivery rate by destination region, coloured by market](docs/images/app_dashboard.png) | ![Incidents tab: reporting a simulated supplier-quality incident for approval](docs/images/app_incidents.png) |
+
+## 13. Setup (Windows PowerShell)
 ```powershell
 py -3.12 -m venv .venv
 .venv\Scripts\python -m pip install -e ".[dev]"
 .venv\Scripts\python scripts\check_environment.py
 ```
-Snowflake access uses key-pair auth with two service users:
-- `SCC_SVC` builds the warehouse objects.
-- `SCC_APP_SVC` is the read-only runtime user for the app and agent.
+**Snowflake:**
+- Key-pair auth with two service users: `SCC_SVC` builds objects, and `SCC_APP_SVC` is the least-privilege runtime user.
+- Run the scripts in `sql/` in folder order, starting with `sql/00_setup/01_account_setup.sql`.
+- Copy `.env.example` to `.env` and fill it in. Private keys stay outside the repo.
 
-Private keys stay outside the repo. See `sql/00_setup/01_account_setup.sql`, `sql/70_agent/00c_app_service_user.sql` and `.env.example`.
-
-## Run the app
+**Run the app:**
 ```powershell
 .venv\Scripts\streamlit run app\streamlit_app.py
 ```
-See [docs/app_guide.md](docs/app_guide.md) for what's on screen and a 5–7 minute demo script.
-
-Optional, for the Incidents tab: start n8n and the callback API ([docs/incident_workflow.md](docs/incident_workflow.md#run-it)).
+**Optional, for the Incidents tab:**
 ```powershell
 docker compose --env-file .env -f n8n/docker-compose.yml up -d
 .venv\Scripts\python -m supplychain_copilot.incidents.api
 ```
+See [docs/incident_workflow.md](docs/incident_workflow.md#run-it).
 
-## Tests
+**Tests:**
 ```powershell
 .venv\Scripts\ruff check .
-.venv\Scripts\pytest                                                   # unit + UI tests, no Snowflake needed
-$env:SCC_RUN_SNOWFLAKE_TESTS="1"; .venv\Scripts\pytest -m snowflake    # live Snowflake tests (no Cortex cost)
-.venv\Scripts\python -m supplychain_copilot.agent.evaluate --yes       # paid: 12 agent cases
+.venv\Scripts\pytest                                                    # CI suite, no Snowflake needed
+$env:SCC_RUN_SNOWFLAKE_TESTS="1"; .venv\Scripts\pytest -m snowflake     # live, no Cortex cost
+.venv\Scripts\python -m supplychain_copilot.evaluation.runner --yes     # paid: 37-case evaluation
 ```
+
+## 14. Known limitations
+- **Data:**
+  - DataCo is retail/e-commerce sample data. It has **no supplier, carrier or plant fields**, so it can't attribute delays to suppliers, and the agent says so.
+  - First Class is late on 100% of shipments, a pattern built into the dataset.
+  - Monthly views mostly reflect market rotation.
+- **Documents:** two image-only pages aren't extracted, there's no OCR, and some financial tables are flattened.
+- **Evaluation:** questions and labels were written by the developer, each run is a single sample of a non-deterministic model, and fact checks are phrase-based. Multi-turn conversations and load were not tested.
+- **App:**
+  - local and single-user, with no SSO
+  - latency is 13–25 s
+  - names in the incident workflow are self-declared, so separation of duties compares names, not authenticated identities
+  - the owner role could rewrite the hash chain; production would anchor the chain head outside it
+- **Cost:** this is a trial account. Budgets alert but don't stop spend.
+
+## 15. Future improvements
+SSO and hosted deployment; per-user document access through separate search services or policy inheritance; multi-turn and independently labelled evaluation; an A/B test of a faster orchestration model; Snowflake Tasks or dbt for scheduled refresh; anchoring the audit chain outside the owner role; and connectors for enterprise sources such as ERP and document stores. The full list, with the reason for each, is in [docs/backlog.md](docs/backlog.md).
+
+---
+*Built as an independent portfolio project for an interview. All data is public; no Worthington systems, credentials or internal information were used.*

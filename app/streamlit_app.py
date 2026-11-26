@@ -182,13 +182,16 @@ def feedback_widget(i: int, msg: dict) -> None:
 # ----------------------------------------------------------------------------- page
 
 init_state()
-components.header()
 
 dashboard = None
 try:
     dashboard = load_dashboard(services().data)
+except Exception:  # noqa: BLE001 - shown as a friendly warning below, never a stack trace
+    dashboard = None
+components.header(live=dashboard is not None)
+if dashboard is not None:
     components.kpi_row(dashboard["kpis"])
-except Exception:  # noqa: BLE001 - show a friendly message, never a stack trace or connection details
+else:
     st.warning(
         "Live metrics are unavailable right now (Snowflake connection or permissions). "
         "Check the app's .env settings for the runtime user and that the warehouse is running.",
