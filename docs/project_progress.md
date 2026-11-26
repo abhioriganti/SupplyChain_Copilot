@@ -2,6 +2,19 @@
 
 **Interview:** 2026-12-08 · **Current phase:** 8, Evaluation, reliability, security and observability · **Status:** ✅ **Phase 8 complete** (2026-11-26).
 
+## Backlog pass 1: quick wins (2026-11-26)
+Items 1, 2, 7 and 10 from `docs/backlog.md`. Decisions are in ADR-025.
+
+| Item | Done | Evidence |
+|---|---|---|
+| 2. Semantic dimensions and metrics | `profit_margin`, `total_discount`, `discount_rate`, `avg_order_value`, `customer_count`, `revenue_orders`, `order_week`, `order_day_of_week`; now 20 metrics and 24 dimensions | `validate_view` **14 of 14** (was 9): new metrics equal SQL written directly on Gold, overall and by market; week and weekday groupings equal `GROUP BY`; discount identity holds within source rounding (≤ 1 cent on 4,409 lines) |
+| 1. Shorter answers | 150-word / 6-bullet limit in the agent's response instructions; model kept on `auto` | Like-for-like vs run 3: p95 32.0 → 25.4 s, p50 14.5 → 13.4 s, output tokens −19% |
+| 10. Cortex access | `CORTEX_USER` and `USE AI FUNCTIONS` revoked from PUBLIC; explicit grants kept on both project roles | `SHOW GRANTS TO ROLE PUBLIC`: 0 Cortex/AI grants. Run 4 ran as the app user without `USE AI FUNCTIONS`. |
+| 7. Cortex spend | Account budget, 50 credits/month, email alerts | Set in Snowsight. Spend at setup: 14.9 credits month-to-date; agent ≈ 0.09 credits per question (10.5 credits over 121 app-user calls). |
+| Eval | 3 new cases (S9–S11), now 37 | **Run 4: 35/37, 37/37 after correcting two phrase-list false negatives** (`docs/evaluation_findings.md`). 130 CI tests and 13 live tests pass. |
+
+**Not done (deferred):** pinning a faster orchestration model (needs its own paid A/B run).
+
 ## Phase 8: evaluation, reliability, security and observability (2026-11-26)
 
 ### Run

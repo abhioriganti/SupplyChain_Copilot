@@ -116,6 +116,24 @@ Every metric is listed with its grain, numerator, denominator, exclusions and nu
 - Metrics grouped by `ORDER_MONTH` (from `ORDER_TS`), plus `MARKETS_ACTIVE` and `MARKET_LIST`.
 - ⚠️ **26 of 37 months contain a single market** (ADR-011). Month-over-month changes mostly reflect which market is in the data, not operational change. Present monthly figures together with their market list, and prefer comparisons across regions or modes over the full period.
 
+### 13. Margin, discount, order value and customers (added 2026-11-26, backlog item 2)
+Defined only in the semantic view, and reconciled against SQL written directly on the Gold tables (overall and by market) by `validate_view`.
+
+| Metric | Definition | Value (full period) |
+|---|---|---|
+| `order_lines.profit_margin` | `total_profit / total_revenue`, revenue-eligible orders | 12.0% overall; by market 11.6% (Pacific Asia) to 12.4% (USCA) |
+| `order_lines.total_discount` | Sum of the source discount field, revenue-eligible orders | 3,569,808 |
+| `order_lines.discount_rate` | `total_discount / gross_sales_before_discount` | 10.1% |
+| `orders.revenue_orders` | Revenue-eligible orders (not CANCELED or SUSPECTED_FRAUD) | 62,897 |
+| `orders.avg_order_value` | Average order net sales over revenue-eligible orders | 503.12 |
+| `orders.customer_count` | Distinct pseudonymous customer ids, all statuses | 20,652 |
+
+- **Why these were added:** in Phase 8 run 1 the agent computed margins itself (A2, A3), and the fix forbade agent arithmetic. A governed `profit_margin` lets margin questions be answered from the semantic layer instead of being refused.
+- **Discount rounding:** the source rounds sales, discount and net sales separately, so `gross − discount − net` is non-zero on 4,409 of 172,765 revenue-eligible lines, by at most 1 cent (−43.74 in total). `total_discount` sums the source discount field as given.
+- **Order value by product:** grouped by product, category or department, `avg_order_value` averages the *whole* order value of orders containing that item (the same rule as other order-grain metrics), not the item's share.
+
+New time dimensions: `orders.order_week` (Monday-start weeks under Snowflake's default `WEEK_START = 0`; 162 weeks) and `orders.order_day_of_week` (`DAYNAME`). Late-delivery rate by weekday only ranges from 56.9% to 57.6%, so weekday differences in this sample are small.
+
 ## Interpretation rules (for people and for the agent)
 
 1. **No causal claims.** Delivery status records *that* a shipment was late, not *why*. The data has no supplier, carrier, plant or root-cause fields. Never attribute delays to suppliers, quality issues or any other cause from these metrics.

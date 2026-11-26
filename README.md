@@ -5,12 +5,17 @@
 > Independent portfolio project. It uses only **public** data: the DataCo retail/e-commerce sample dataset (CC BY 4.0) and publicly published supplier and annual-report documents. It is not a Worthington Enterprises product and contains no company-internal data. See [docs/data_sources.md](docs/data_sources.md).
 
 ## What it does
-- **Governed analytics:** natural-language questions → Cortex Analyst → SQL over a Snowflake **semantic view**, so every KPI has a single definition. 521 of 521 values reconcile independently, and Analyst passes 9 of 9 NL tests.
+- **Governed analytics:** natural-language questions → Cortex Analyst → SQL over a Snowflake **semantic view**, so every KPI has a single definition. 521 of 521 values reconcile independently, the view matches Gold on 14 of 14 checks (including governed margin, discount and order value), and Analyst passes 9 of 9 NL tests.
 - **Document Q&A:** Cortex Search over public supplier-quality, code-of-conduct and annual-report PDFs, with page-level citations. hit@1 is 97% and hit@5 is 100% on a labelled set, and every word in a chunk is verified to appear on its cited page.
 - **Hybrid agent:** a Cortex Agent picks one tool or both, and keeps measured data separate from policy guidance. 12 of 12 agent test cases pass, including unsafe and unsupported questions.
 - **Trust:** a dedicated read-only runtime user (secondary roles disabled), visible SQL, citations, evaluation suites and SQL data-quality tests.
 - **App:** a Streamlit UI with live KPIs, streamed chat, verified results, a sources panel, charts and feedback.
-- **Evaluated:** a 34-case suite (structured, document, hybrid, ambiguous, unsupported, security, error handling) with SQL ground truth. Over three runs it went 30/33 → 34/34 after fixing the real defects it found; see [docs/evaluation_findings.md](docs/evaluation_findings.md). Every request is logged to a monitoring table.
+- **Evaluated:** a 37-case suite (structured, document, hybrid, ambiguous, unsupported, security, error handling) with SQL ground truth.
+  - Over four runs it went 30/33 → 34/34 → 37/37, fixing the real defects it found and correcting evaluator mistakes with regression tests.
+  - Shorter answers cut p95 latency from 32 to 25 s.
+  - See [docs/evaluation_findings.md](docs/evaluation_findings.md).
+  - Every request is logged to a monitoring table.
+- **Cost and access:** Cortex is granted explicitly to the two project roles (revoked from PUBLIC). An account budget alerts on spend, and the warehouse has a resource monitor.
 
 ## Architecture
 ```

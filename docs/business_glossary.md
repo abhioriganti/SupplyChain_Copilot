@@ -23,6 +23,11 @@ This dictionary maps the words people use to the single governed object each one
 | Gross sales before discount | `order_lines.gross_sales_before_discount` | List-price sales. Use "revenue" for revenue. |
 | Units, quantity sold | `order_lines.units_sold` | Units on revenue-eligible orders |
 | Profit | `order_lines.total_profit` | Line profit on revenue-eligible orders (can be negative) |
+| Margin, profit margin, profitability | `order_lines.profit_margin` | Profit ÷ revenue, revenue-eligible orders. Never computed by the agent. |
+| Discounts, discount amount | `order_lines.total_discount` | Source discount field on revenue-eligible orders |
+| Discount rate, average discount | `order_lines.discount_rate` | Discount ÷ gross sales before discount |
+| AOV, average order value, revenue per order | `orders.avg_order_value` | Average net sales per revenue-eligible order |
+| Customers, number of customers | `orders.customer_count` | Distinct pseudonymous customer ids (count only) |
 
 ## Dimensions
 
@@ -35,6 +40,9 @@ This dictionary maps the words people use to the single governed object each one
 | Delivery status, shipment status, delivery outcome | `orders.delivery_status` | Advance, On time, Late, Canceled |
 | Order status | `orders.order_status` | Commercial status (COMPLETE, PENDING, …) |
 | Month | `orders.order_month` | ⚠️ Markets rotate by month (see below) |
+| Week, weekly | `orders.order_week` | Monday-start weeks |
+| Quarter | `orders.order_quarter` | Calendar quarters |
+| Weekday, day of week | `orders.order_day_of_week` | Mon … Sun |
 | Year, date | `orders.order_year`, `orders.order_date` | |
 | Segment | `orders.customer_segment` | Consumer, Corporate, Home Office |
 | Country, state, city | `orders.destination_country`, `orders.destination_state`, `orders.destination_city` | Destination, not customer address |

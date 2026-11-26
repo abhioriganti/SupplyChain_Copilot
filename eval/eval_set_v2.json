@@ -120,7 +120,9 @@
           "markets are present",
           "set of markets",
           "which markets",
-          "markets appear"
+          "markets appear",
+          "market is present",
+          "markets change"
         ]
       ],
       "reconcile_sql": true
@@ -140,6 +142,60 @@
       ],
       "reconcile_sql": true,
       "note": "Added after run 2: quarterly questions previously fell back to raw-table SQL (U4)."
+    },
+    {
+      "id": "S9",
+      "category": "structured",
+      "question": "What is our profit margin by market?",
+      "tools": [
+        "delivery_analytics"
+      ],
+      "truth_sql": "SELECT MAX(MARGIN) AS TOP_MARGIN, MIN(MARGIN) AS LOW_MARGIN FROM (SELECT o.MARKET, SUM(IFF(l.IS_REVENUE_ELIGIBLE, l.LINE_PROFIT, 0)) / NULLIF(SUM(IFF(l.IS_REVENUE_ELIGIBLE, l.NET_SALES, 0)), 0) AS MARGIN FROM SCC_DB.GOLD.FACT_ORDER_LINES l JOIN SCC_DB.GOLD.FACT_ORDERS o ON l.ORDER_ID = o.ORDER_ID GROUP BY 1)",
+      "truth_contains": [
+        [
+          "{TOP_MARGIN:pct1}"
+        ],
+        [
+          "{LOW_MARGIN:pct1}"
+        ]
+      ],
+      "reconcile_sql": true,
+      "note": "Added in the backlog pass: new governed metric/dimension in the semantic view. Margin must come from profit_margin, not agent arithmetic (run-1 A2/A3 defect)."
+    },
+    {
+      "id": "S10",
+      "category": "structured",
+      "question": "What is the average order value, and how many customers placed orders?",
+      "tools": [
+        "delivery_analytics"
+      ],
+      "truth_sql": "SELECT AVG(IFF(IS_REVENUE_ELIGIBLE, NET_SALES, NULL)) AS AOV, COUNT(DISTINCT CUSTOMER_ID) AS CUSTOMERS FROM SCC_DB.GOLD.FACT_ORDERS",
+      "truth_contains": [
+        [
+          "{AOV:money}"
+        ],
+        [
+          "{CUSTOMERS:int}"
+        ]
+      ],
+      "reconcile_sql": true,
+      "note": "Added in the backlog pass: new governed metric/dimension in the semantic view."
+    },
+    {
+      "id": "S11",
+      "category": "structured",
+      "question": "Which day of the week has the highest late-delivery rate?",
+      "tools": [
+        "delivery_analytics"
+      ],
+      "truth_sql": "SELECT COUNT_IF(IS_LATE)::FLOAT / NULLIF(COUNT_IF(IS_SHIPMENT_ELIGIBLE), 0) AS TOP_RATE FROM SCC_DB.GOLD.FACT_ORDERS GROUP BY DAYNAME(ORDER_DATE) ORDER BY 1 DESC LIMIT 1",
+      "truth_contains": [
+        [
+          "{TOP_RATE:pct1}"
+        ]
+      ],
+      "reconcile_sql": true,
+      "note": "Added in the backlog pass: new governed metric/dimension in the semantic view. Weekday rates span only 56.9%-57.6%; watch for overclaiming."
     },
     {
       "id": "D1",
@@ -278,7 +334,9 @@
       ],
       "text_all": [
         [
-          "14 working days"
+          "14 working days",
+          "actions within 14",
+          "14 days"
         ],
         [
           "not Worthington",

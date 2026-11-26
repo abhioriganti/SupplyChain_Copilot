@@ -64,6 +64,12 @@ CREATE OR REPLACE SEMANTIC VIEW SUPPLY_CHAIN_DELIVERY_SV
     orders.order_quarter AS DATE_TRUNC('QUARTER', ORDER_DATE)
       WITH SYNONYMS = ('quarter', 'fiscal quarter', 'calendar quarter')
       COMMENT = 'First day of the order quarter. Added in Phase 8: without it, quarterly questions made Analyst fall back to raw-table SQL, which the read-only runtime role correctly denied.',
+    orders.order_week AS DATE_TRUNC('WEEK', ORDER_DATE)
+      WITH SYNONYMS = ('week', 'weekly', 'order week')
+      COMMENT = 'First day of the order week (Monday under the default WEEK_START = 0). Added in the backlog pass so weekly questions stay on the governed view.',
+    orders.order_day_of_week AS DAYNAME(ORDER_DATE)
+      WITH SYNONYMS = ('weekday', 'day of week', 'day of the week')
+      COMMENT = 'Three-letter weekday the order was placed (Mon to Sun).',
     orders.order_year AS YEAR(ORDER_DATE)
       WITH SYNONYMS = ('year')
       COMMENT = 'Calendar year of the order.',
@@ -143,6 +149,15 @@ CREATE OR REPLACE SEMANTIC VIEW SUPPLY_CHAIN_DELIVERY_SV
     orders.avg_days_late AS AVG(orders.DAYS_LATE::FLOAT)
       WITH SYNONYMS = ('average delay', 'average days late', 'average positive delay')
       COMMENT = 'Average days beyond schedule, over late shipments only.',
+    orders.revenue_orders AS SUM(IFF(orders.IS_REVENUE_ELIGIBLE, 1, 0))
+      WITH SYNONYMS = ('revenue-eligible orders', 'billable orders')
+      COMMENT = 'Orders that count toward revenue (excludes CANCELED and SUSPECTED_FRAUD). Denominator of avg_order_value.',
+    orders.avg_order_value AS AVG(IFF(orders.IS_REVENUE_ELIGIBLE, orders.NET_SALES, NULL))
+      WITH SYNONYMS = ('AOV', 'average order value', 'average order size', 'revenue per order')
+      COMMENT = 'GOVERNED: average net sales per revenue-eligible order. Grouped by product, category or department it averages the full value of orders containing that item, not the item share.',
+    orders.customer_count AS COUNT(DISTINCT orders.CUSTOMER_ID)
+      WITH SYNONYMS = ('number of customers', 'unique customers', 'distinct customers', 'customers')
+      COMMENT = 'Distinct pseudonymous customer ids placing orders (all statuses). Count only; no customer details exist.',
 
     -- ---- order-line grain (revenue)
     order_lines.order_line_count AS COUNT(order_lines.ORDER_ITEM_ID)
@@ -158,12 +173,21 @@ CREATE OR REPLACE SEMANTIC VIEW SUPPLY_CHAIN_DELIVERY_SV
       COMMENT = 'List-price sales before discount on revenue-eligible orders. Use total_revenue for revenue.',
     order_lines.total_profit AS SUM(IFF(order_lines.IS_REVENUE_ELIGIBLE, order_lines.LINE_PROFIT, 0))
       WITH SYNONYMS = ('profit')
-      COMMENT = 'Line profit on revenue-eligible orders (can be negative).'
+      COMMENT = 'Line profit on revenue-eligible orders (can be negative).',
+    order_lines.profit_margin AS order_lines.total_profit / NULLIF(order_lines.total_revenue, 0)
+      WITH SYNONYMS = ('margin', 'profit margin', 'profitability', 'margin percentage')
+      COMMENT = 'GOVERNED: total_profit / total_revenue on revenue-eligible orders. Fraction between 0 and 1 (can be negative).',
+    order_lines.total_discount AS SUM(IFF(order_lines.IS_REVENUE_ELIGIBLE, order_lines.DISCOUNT_AMOUNT, 0))
+      WITH SYNONYMS = ('discounts', 'discount amount', 'total discounts given')
+      COMMENT = 'Discount given on revenue-eligible orders, summed from the source discount field. Gross sales minus total_revenue differs by about 44 in total because the source rounds each field separately (at most 1 cent per line).',
+    order_lines.discount_rate AS order_lines.total_discount / NULLIF(order_lines.gross_sales_before_discount, 0)
+      WITH SYNONYMS = ('average discount', 'discount percentage', 'effective discount rate')
+      COMMENT = 'GOVERNED: total_discount / gross_sales_before_discount. Fraction between 0 and 1.'
   )
 
   COMMENT = 'Supply Chain Delivery Performance - governed semantic layer over the DataCo PUBLIC SAMPLE dataset (retail/e-commerce, 2015-2018). Not Worthington data.'
 
-  AI_SQL_GENERATION 'The data is the public DataCo sample dataset (retail and e-commerce orders, January 2015 to January 2018). It is not company data. Always use the defined metrics (total_orders, eligible_shipments, late_shipments, late_delivery_rate, on_time_delivery_rate, avg_actual_shipping_days, avg_days_late, total_revenue, order_line_count) instead of recomputing them from columns. Delivery metrics are per shipment, where one order equals one shipment, and canceled shipments are excluded. Count orders with total_orders, never by counting order lines. Use regions.order_region for region and regions.market for market. When results are grouped by month, also include market, because the dataset contains different markets in different months. When an order-level metric is grouped by product, category or department, each order is counted once in every category it contains, so the category values do not add up to the overall total. Return rates as fractions between 0 and 1. Order ranked results explicitly.'
+  AI_SQL_GENERATION 'The data is the public DataCo sample dataset (retail and e-commerce orders, January 2015 to January 2018). It is not company data. Always use the defined metrics (total_orders, eligible_shipments, late_shipments, late_delivery_rate, on_time_delivery_rate, avg_actual_shipping_days, avg_days_late, total_revenue, total_profit, profit_margin, total_discount, discount_rate, avg_order_value, customer_count, order_line_count) instead of recomputing them from columns. For margin or profitability questions use profit_margin; never divide total_profit by total_revenue yourself. Use order_week for weekly questions and order_quarter for quarterly ones. Delivery metrics are per shipment, where one order equals one shipment, and canceled shipments are excluded. Count orders with total_orders, never by counting order lines. Use regions.order_region for region and regions.market for market. When results are grouped by month, also include market, because the dataset contains different markets in different months. When an order-level metric is grouped by product, category or department, each order is counted once in every category it contains, so the category values do not add up to the overall total. Return rates as fractions between 0 and 1. Order ranked results explicitly.'
 
   AI_QUESTION_CATEGORIZATION 'If a question asks about suppliers, supplier quality, plants, manufacturing, carriers, inventory, or the cause of delays, explain that this dataset contains no such fields and offer the closest available delivery metric. If a question asks for customer names, emails, or addresses, explain that personal data was removed.'
 
@@ -185,6 +209,11 @@ CREATE OR REPLACE SEMANTIC VIEW SUPPLY_CHAIN_DELIVERY_SV
       ONBOARDING_QUESTION TRUE
       VERIFIED_BY '(STEWARD = supplychain_copilot_maintainer)'
       SQL 'SELECT * FROM SEMANTIC_VIEW(SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV METRICS orders.total_orders, orders.eligible_shipments, orders.late_shipments, orders.late_delivery_rate, orders.on_time_delivery_rate, orders.avg_actual_shipping_days, orders.avg_days_late, order_lines.total_revenue)'
+    ),
+    profit_margin_by_market AS (
+      QUESTION 'What is the profit margin by market?'
+      VERIFIED_BY '(STEWARD = supplychain_copilot_maintainer)'
+      SQL 'SELECT * FROM SEMANTIC_VIEW(SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV DIMENSIONS regions.market METRICS order_lines.profit_margin, order_lines.total_profit, order_lines.total_revenue) ORDER BY profit_margin DESC'
     )
   );
 

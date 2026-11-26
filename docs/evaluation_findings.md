@@ -95,6 +95,33 @@ All 8 privilege probes behaved as expected. SQL suites: 38 of 38 and 13 of 13.
 
 The 2 status errors per run are E1 and E2, the empty and over-long inputs, which are expected to be rejected client-side.
 
+## Run 4 (`eval-20261126T165254`): 35 of 37 passed; 37 of 37 after evaluator correction
+
+This run retested the backlog changes (ADR-025): new governed metrics and dimensions, a 150-word answer limit, and Cortex grants revoked from PUBLIC. It ran as `SCC_APP_SVC`, whose role holds `CORTEX_USER` but **not** `USE AI FUNCTIONS`. Privilege probes 8 of 8; SQL suites 38 of 38 and 13 of 13. Every agent SQL statement used the semantic view.
+
+**New cases (all passed):**
+- **S9:** margin by market, from the governed `profit_margin` metric (12.4% USCA, 11.6% Pacific Asia)
+- **S10:** average order value (503) and 20,652 customers
+- **S11:** the weekday with the highest late rate. The agent noted how small the differences are, without overclaiming.
+
+**Failures (both evaluator false negatives; the answers were correct):**
+
+| Case | Answer text | Why it failed | Fix |
+|---|---|---|---|
+| S7 | "most month-to-month changes come from which market is present" | The accepted list had "markets are present" but not the singular | Added "market is present" and "markets change" |
+| H1 | "Containment within 2 working days, corrective and preventive actions within 14, and effectiveness checked within 30" | The shorter answer dropped the unit after 14, so "14 working days" was missing | Accept "actions within 14" or "14 days". A wrong deadline is still rejected (regression test). |
+
+H1 is also a small genuine **side effect of the length limit**: the facts are right, but the unit is implied rather than stated. Re-scoring the stored run-4 answers with the corrected checks gives 37 of 37 (no new agent calls).
+
+**Latency and tokens** (`APP.AGENT_REQUEST_LOG`, the 34 cases common to runs 3 and 4):
+
+| | Run 3 | Run 4 |
+|---|---|---|
+| p50 / p95 latency | 14.5 / 32.0 s | 13.4 / 25.4 s |
+| Average output tokens | 1,067 | 866 |
+
+These come from one query over the log. The run-3 row in the monitoring table above (15.0 / 32.1 s) was computed earlier over all 34 requests with a different percentile method, so compare within this table only. Each run is one sample.
+
 ## What the evaluation does and doesn't establish
 
 - **Does:** on 34 questions designed for this corpus, the agent:

@@ -10,7 +10,8 @@ This is a consolidated list from Phases 0–8, so the work can be picked up late
 | Semantic view | `SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV`, now with a quarter dimension. Matches Gold on 9/9 checks; Analyst passes 9/9 NL tests. |
 | Documents | 152 chunks; 13 SQL tests pass; every word in every chunk verified to appear on its cited page |
 | Search | `SCC_DB.AI.SUPPLIER_DOCS_SEARCH`: hit@1 96.7%, hit@5 100%, MRR 0.983 |
-| Agent | `SCC_DB.AI.SUPPLY_CHAIN_COPILOT`, runs as the read-only `SCC_APP_SVC` user. Evaluation run 3: 34/34. |
+| Agent | `SCC_DB.AI.SUPPLY_CHAIN_COPILOT`, runs as the read-only `SCC_APP_SVC` user. Evaluation run 4: 37/37 after correcting the evaluator (35/37 on first scoring). |
+| Cost | Account budget of 50 credits/month with email alerts; 25-credit warehouse monitor; agent ≈ 0.09 credits per question |
 | App | Streamlit with streaming, session cache, citations, charts and feedback |
 | Ops | Request log and monitoring view; CI with secret scan, Ruff and pytest |
 
@@ -23,16 +24,16 @@ This is a consolidated list from Phases 0–8, so the work can be picked up late
 
 | # | Item | Why | Effort | Source |
 |---|---|---|---|---|
-| 1 | Shorter answers (word limit) and/or pin a faster orchestration model | Total latency is 15–35 s; streaming only improves *perceived* latency. Re-run the eval suite after any change. | S–M | Phase 7b, ADR-023 |
-| 2 | Add more semantic-view dimensions for likely questions (week, country × mode, …) | Missing dimensions make Analyst fall back to raw-table SQL (found in U4; now blocked and checked) | S | Phase 8 |
+| 1 | ~~Shorter answers~~ **done 2026-11-26** (p95 32 → 25 s). Still open: A/B test pinning `claude-sonnet-5-5` for orchestration | Total latency is still 13–25 s. Any model change needs a full eval re-run (about 3 credits). | S | Phase 7b, ADR-023, ADR-025 |
+| 2 | ~~More semantic-view metrics and dimensions~~ **done 2026-11-26**: margin, discount, order value, customers, week, weekday | Missing metrics push the agent toward its own arithmetic or raw SQL | — | Phase 8, ADR-025 |
 | 3 | Multi-turn evaluation (follow-ups, context drift) | Not covered by the 34 single-turn cases | M | Phase 8 |
 | 4 | Red-team for instructions planted inside documents (a test corpus or a separate service) | Document injection resistance is instruction-based and untested | M | Phases 6, 8 |
 | 5 | Independent labelling or a second reviewer for the eval sets; repeat runs to measure variance | Labels are developer-written; runs are single samples | M | Phases 5, 8 |
 | 6 | Optional LLM-as-judge groundedness score as a second signal | Phrase checks can miss correct wording (S7 run 1) | M | ADR-024 |
-| 7 | Snowflake Budget or alert for Cortex spend | Resource monitors cover warehouses only | S | ADR-005 |
+| 7 | ~~Budget for Cortex spend~~ **done 2026-11-26**: account budget, 50 credits/month, email alerts (alerts only, forecast-based) | Resource monitors cover warehouses only | — | ADR-005, ADR-025 |
 | 8 | Host the UI (SiS container runtime or an internal host with SSO) | Local single-user app; the Agents API isn't supported on SiS warehouse runtime | L | ADR-002, ADR-022 |
 | 9 | Per-user document access (separate search services or policy inheritance) | Cortex Search uses owner's rights; ACCESS_GROUP isn't a security boundary | M | ADR-009 |
-| 10 | Revoke CORTEX_USER and USE AI FUNCTIONS from PUBLIC | Currently granted to PUBLIC by default | S | Phase 0 |
+| 10 | ~~Revoke CORTEX_USER and USE AI FUNCTIONS from PUBLIC~~ **done 2026-11-26**; verified with `SHOW GRANTS` and eval run 4 | Was granted to PUBLIC by default | — | Phase 0, ADR-025 |
 | 11 | Orchestrated pipeline (Tasks or dbt) instead of a command sequence | Fine for a static source; production needs scheduling and lineage | M | Phase 2 |
 | 12 | Optional n8n supplier-incident workflow with human approval and audit log | Original "Feature F" (optional) | M | Project brief |
 
@@ -60,7 +61,8 @@ This is a consolidated list from Phases 0–8, so the work can be picked up late
 - Each run is a single sample of a non-deterministic model.
 
 **App**
-- Answers take 15–35 s in total.
+- Answers take about 13–25 s in total (p50 / p95 in run 4).
+- The 150-word limit occasionally leaves out a unit (H1 in run 4: "within 14" for "14 working days").
 - Cosmetic: while an answer streams, the new message sits below the input until the page reruns.
 - Local, single user, no SSO.
 

@@ -384,3 +384,25 @@ def test_live_request_log_insert_only():
     assert log_request(rec) == "snowflake"
     with app_session() as c, pytest.raises(Exception):  # noqa: B017 - SELECT must be denied (insert-only)
         query(c, "SELECT COUNT(*) FROM SCC_DB.APP.AGENT_REQUEST_LOG")
+
+
+def test_run4_wording_regressions():
+    """Run 4 false negatives: correct answers worded outside the accepted phrases."""
+    cases = {
+        c["id"]: c
+        for c in json.loads((ROOT / "eval" / "eval_set_v2.json").read_text(encoding="utf-8"))[
+            "cases"
+        ]
+    }
+    s7 = (
+        "Markets change from month to month. So most month-to-month changes come from which "
+        "market is present, not from a change in performance."
+    )
+    h1 = (
+        "Containment within 2 working days, corrective and preventive actions within 14, and "
+        "effectiveness checked within 30."
+    )
+    assert checks.missing_groups(s7, [cases["S7"]["text_all"][1]]) == []
+    assert checks.missing_groups(h1, [cases["H1"]["text_all"][0]]) == []
+    # still strict: a wrong deadline is not accepted
+    assert checks.missing_groups("corrective actions within 10 days", [cases["H1"]["text_all"][0]])

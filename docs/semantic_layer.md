@@ -33,11 +33,11 @@ products (PRODUCT_ID) ◄── many-to-one ── order_lines (ORDER_ITEM_ID)
 | `regions` | `GOLD.DIM_REGIONS` | region | region, market |
 
 Contents:
-- **14 metrics**, 21 dimensions and 6 facts.
+- **20 metrics**, 24 dimensions and 6 facts (counts from `SHOW SEMANTIC …`, 2026-11-26). Phase 8 added the quarter dimension; the backlog pass added margin, discount, order-value and customer metrics and the week and weekday dimensions.
 - Business synonyms on every important term.
 - Comments that carry the business rules.
 - `AI_SQL_GENERATION` and `AI_QUESTION_CATEGORIZATION` instructions.
-- **3 steward-verified queries**, marked as onboarding questions.
+- **4 steward-verified queries**; 3 are marked as onboarding questions.
 
 ## How it prevents inconsistent calculations
 
@@ -68,7 +68,7 @@ See the glossary's ambiguity table. In summary:
 
 | Suite | What | Result |
 |---|---|---|
-| `python -m supplychain_copilot.semantic.validate_view` | Every governed metric via `SEMANTIC_VIEW()` against reconciled Gold, overall + 23 regions + 4 modes + 37 months; category dedup against `COUNT(DISTINCT)`; undefined-name rejection; metric registration | **9 of 9 pass** |
+| `python -m supplychain_copilot.semantic.validate_view` | Every governed metric via `SEMANTIC_VIEW()` against reconciled Gold, overall + 23 regions + 4 modes + 37 months; category dedup against `COUNT(DISTINCT)`; undefined-name rejection; metric registration. Since the backlog pass: the new metrics against SQL on the Gold tables (overall and by market), the discount identity within source rounding, and week and weekday groupings against `GROUP BY` | **14 of 14 pass** (was 9 of 9) |
 | `python -m supplychain_copilot.semantic.nl_tests --yes` | 9 natural-language questions through Cortex Analyst; generated SQL executed and compared with ground truth (including one negative supplier question) | **9 of 9 pass** |
 
 ## Known limitations
@@ -76,4 +76,4 @@ See the glossary's ambiguity table. In summary:
 - Rates are returned as fractions; the UI formats them as percentages.
 - `AI_SQL_GENERATION` is guidance to a model, not an enforced rule. The tests are what verify the behaviour.
 - `VERIFIED_AT` was omitted, so it shows as `0`. The steward is a project role, not a person.
-- The semantic view hasn't yet been granted to `SCC_APP_ROLE`; that comes in Phase 4 with the agent.
+- `CREATE OR REPLACE` drops grants, so the deploy script re-grants SELECT to `SCC_APP_ROLE` at the end.

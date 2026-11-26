@@ -317,6 +317,19 @@ Totals vary run to run on the service side.
 
 **CI:** secret scan of tracked files, Ruff lint and format, and the unit, UI and evaluation-logic tests. Paid and live suites stay local because the CI has no credentials.
 
+## ADR-025: Backlog hardening: governed margin, answer length, explicit Cortex access, account budget
+**Status:** Accepted (2026-11-26)
+**Context:** Phase 8 forbade the agent from doing its own arithmetic, which left margin questions with no governed answer. Answers took 15–35 s. Every role got Cortex through PUBLIC, and nothing alerted on Cortex spend (the resource monitor covers only the warehouse).
+**Decisions:**
+- **Semantic view:** add `profit_margin`, `total_discount`, `discount_rate`, `avg_order_value`, `customer_count` and `revenue_orders`, plus `order_week` and `order_day_of_week`. Each is reconciled against SQL written directly on Gold (`validate_view`: 14 of 14).
+  - *Alternative:* let the agent divide profit by revenue. *Rejected:* that is the metric drift the semantic layer exists to stop.
+- **Answer length:** a word and bullet limit in `instructions.response`. The docs list no max-output setting for agents, only `orchestration.budget` (seconds and tokens), which ends the request rather than shortening it.
+  - *Alternative:* pin a faster orchestration model (`claude-sonnet-5-5` is GA under AWS US cross-region inference). *Deferred:* it changes quality, so it needs its own A/B eval run.
+- **Cortex access:** both project roles hold `SNOWFLAKE.CORTEX_USER` explicitly. `CORTEX_USER` and `USE AI FUNCTIONS` were revoked from PUBLIC (ACCOUNTADMIN, `sql/00_setup/03_cortex_access_and_spend.sql`). The runtime role is deliberately **not** given `USE AI FUNCTIONS`: the docs list it only for AI functions, and run 4 confirmed that the agent, Analyst and Search work without it.
+- **Spend:** the account budget is active with a 50-credit monthly limit and email alerts. It covers the whole account, Cortex included, so no undocumented `ADD_RESOURCE` type for agents was needed.
+  - *Tradeoffs:* the limit only alerts; it doesn't stop spend. Alerts are forecast-based, it refreshes up to every 6.5 h, and it costs a small amount itself. The warehouse's resource monitor is still the hard stop.
+**Evidence:** eval run 4: 35 of 37 on first scoring, and 37 of 37 after correcting two phrase-list false negatives. Like-for-like on the 34 earlier cases: p95 latency 32.0 → 25.4 s and average output tokens 1,067 → 866. This is a single sample.
+
 ## ADR-013: Parse failures abort; source quirks are flagged
 **Status:** Accepted
 **Decision:**

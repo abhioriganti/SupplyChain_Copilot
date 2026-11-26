@@ -216,6 +216,10 @@ def run_checks() -> list[Check]:
                 Check("undefined_dimension_rejected", True, str(exc).splitlines()[0][:160])
             )
 
+        # 5. Backlog additions: margin, discount, order value, customers, week and weekday.
+        #    Truth is written directly against the Gold tables, independent of the semantic view.
+        checks.extend(_check_backlog_additions(conn, sv))
+
         # 4. metadata: governed metrics exist with comments
         metrics = query(conn, f"SHOW SEMANTIC METRICS IN {sv}")
         names = {str(m.get("NAME", "")).lower() for m in metrics}
@@ -228,6 +232,119 @@ def run_checks() -> list[Check]:
             )
         )
     return checks
+
+
+NEW_LINE_METRICS = (
+    "order_lines.profit_margin, order_lines.total_discount, order_lines.discount_rate"
+)
+NEW_ORDER_METRICS = "orders.revenue_orders, orders.avg_order_value, orders.customer_count"
+_LINE_TRUTH = (
+    "SELECT {key} AS K, SUM(IFF(l.IS_REVENUE_ELIGIBLE, l.LINE_PROFIT, 0)) "
+    "/ NULLIF(SUM(IFF(l.IS_REVENUE_ELIGIBLE, l.NET_SALES, 0)), 0) AS PROFIT_MARGIN, "
+    "SUM(IFF(l.IS_REVENUE_ELIGIBLE, l.DISCOUNT_AMOUNT, 0)) AS TOTAL_DISCOUNT, "
+    "SUM(IFF(l.IS_REVENUE_ELIGIBLE, l.DISCOUNT_AMOUNT, 0)) "
+    "/ NULLIF(SUM(IFF(l.IS_REVENUE_ELIGIBLE, l.GROSS_SALES, 0)), 0) AS DISCOUNT_RATE "
+    "FROM SCC_DB.GOLD.FACT_ORDER_LINES l JOIN SCC_DB.GOLD.FACT_ORDERS o ON l.ORDER_ID = o.ORDER_ID "
+    "GROUP BY 1"
+)
+_ORDER_TRUTH = (
+    "SELECT {key} AS K, COUNT_IF(o.IS_REVENUE_ELIGIBLE) AS REVENUE_ORDERS, "
+    "AVG(IFF(o.IS_REVENUE_ELIGIBLE, o.NET_SALES, NULL)) AS AVG_ORDER_VALUE, "
+    "COUNT(DISTINCT o.CUSTOMER_ID) AS CUSTOMER_COUNT FROM SCC_DB.GOLD.FACT_ORDERS o GROUP BY 1"
+)
+
+
+def _match(sv_rows, truth_rows, sv_key: str | None, cols: list[str]) -> list[str]:
+    truth = {r["K"]: r for r in truth_rows}
+    problems = [] if len(sv_rows) == len(truth) else [f"row count {len(sv_rows)} vs {len(truth)}"]
+    for r in sv_rows:
+        k = r[sv_key] if sv_key else "all"
+        ref = truth.get(k)
+        if ref is None:
+            problems.append(f"key {k!r} missing in truth")
+            continue
+        problems += [f"{k!r} {c}: {r[c]} vs {ref[c]}" for c in cols if not _close(r[c], ref[c])]
+    return problems
+
+
+def _check_backlog_additions(conn, sv: str) -> list[Check]:
+    out: list[Check] = []
+    line_cols = ["PROFIT_MARGIN", "TOTAL_DISCOUNT", "DISCOUNT_RATE"]
+    order_cols = ["REVENUE_ORDERS", "AVG_ORDER_VALUE", "CUSTOMER_COUNT"]
+    for label, dim, key, key_col in [
+        ("overall", "", "'all'", None),
+        ("market", "DIMENSIONS regions.market ", "o.MARKET", "MARKET"),
+    ]:
+        p = _match(
+            query(conn, f"SELECT * FROM SEMANTIC_VIEW({sv} {dim}METRICS {NEW_LINE_METRICS})"),
+            query(conn, _LINE_TRUTH.format(key=key)),
+            key_col,
+            line_cols,
+        )
+        p += _match(
+            query(conn, f"SELECT * FROM SEMANTIC_VIEW({sv} {dim}METRICS {NEW_ORDER_METRICS})"),
+            query(conn, _ORDER_TRUTH.format(key=key)),
+            key_col,
+            order_cols,
+        )
+        out.append(
+            Check(
+                f"new_metrics_{label}_match_gold",
+                not p,
+                "; ".join(p[:5]) or f"6 metrics equal ({label})",
+            )
+        )
+
+    # discount identity: gross - discount = net per line, up to the source's separate rounding
+    #   of each field (measured: 4,409 of 172,765 lines differ, by at most 1 cent).
+    r = query(
+        conn,
+        "SELECT MAX(ABS(GROSS_SALES - DISCOUNT_AMOUNT - NET_SALES)) AS MAX_GAP, "
+        "COUNT_IF(ABS(GROSS_SALES - DISCOUNT_AMOUNT - NET_SALES) > 0.005) AS OFF_LINES "
+        "FROM SCC_DB.GOLD.FACT_ORDER_LINES WHERE IS_REVENUE_ELIGIBLE",
+    )[0]
+    out.append(
+        Check(
+            "discount_identity_within_source_rounding",
+            float(r["MAX_GAP"]) <= 0.0101,
+            f"max per-line gap {float(r['MAX_GAP']):.4f}; {r['OFF_LINES']} lines differ by rounding",
+        )
+    )
+
+    # time grains: each partitions the orders exactly and matches GROUP BY on Gold
+    for dim, expr in [
+        ("order_week", "DATE_TRUNC('WEEK', ORDER_DATE)"),
+        ("order_day_of_week", "DAYNAME(ORDER_DATE)"),
+    ]:
+        sv_rows = query(
+            conn,
+            f"SELECT * FROM SEMANTIC_VIEW({sv} DIMENSIONS orders.{dim} "
+            "METRICS orders.total_orders, orders.late_shipments)",
+        )
+        truth = {
+            t["K"]: t
+            for t in query(
+                conn,
+                f"SELECT {expr} AS K, COUNT(*) AS T, COUNT_IF(IS_LATE) AS L "
+                "FROM SCC_DB.GOLD.FACT_ORDERS GROUP BY 1",
+            )
+        }
+        bad = [
+            s[dim.upper()]
+            for s in sv_rows
+            if (s["TOTAL_ORDERS"], s["LATE_SHIPMENTS"])
+            != (truth.get(s[dim.upper()], {}).get("T"), truth.get(s[dim.upper()], {}).get("L"))
+        ]
+        ok = not bad and len(sv_rows) == len(truth)
+        out.append(
+            Check(
+                f"{dim}_matches_gold",
+                ok,
+                f"{len(sv_rows)} groups, {len(bad)} mismatched, "
+                f"orders sum {sum(s['TOTAL_ORDERS'] for s in sv_rows)}",
+            )
+        )
+    return out
 
 
 def main() -> int:
