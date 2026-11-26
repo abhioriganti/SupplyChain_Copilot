@@ -9,7 +9,8 @@
 - **Document Q&A:** Cortex Search over public supplier-quality, code-of-conduct and annual-report PDFs, with page-level citations. hit@1 is 97% and hit@5 is 100% on a labelled set, and every word in a chunk is verified to appear on its cited page.
 - **Hybrid agent:** a Cortex Agent picks one tool or both, and keeps measured data separate from policy guidance. 12 of 12 agent test cases pass, including unsafe and unsupported questions.
 - **Trust:** a dedicated read-only runtime user (secondary roles disabled), visible SQL, citations, evaluation suites and SQL data-quality tests.
-- **App:** a Streamlit UI with live KPIs, chat, verified results, a sources panel, charts and feedback.
+- **App:** a Streamlit UI with live KPIs, streamed chat, verified results, a sources panel, charts and feedback.
+- **Evaluated:** a 34-case suite (structured, document, hybrid, ambiguous, unsupported, security, error handling) with SQL ground truth. Over three runs it went 30/33 → 34/34 after fixing the real defects it found; see [docs/evaluation_findings.md](docs/evaluation_findings.md). Every request is logged to a monitoring table.
 
 ## Architecture
 ```

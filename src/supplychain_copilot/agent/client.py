@@ -140,6 +140,30 @@ def redact(text: str) -> tuple[str, bool]:
     return text, changed
 
 
+_PROCESS_NOTE = re.compile(
+    r"(?i)\b(skill|tool[s]?|load(ing)? (the )?|let me|i need to|i'll (now )?(query|check|search|load|use)|"
+    r"chart without|calling|must (load|call|use))\b"
+)
+
+
+def drop_process_notes(texts: list[str]) -> list[str]:
+    """Remove short text segments that are the model's internal process notes rather than answer text.
+
+    Observed in Phase 8 evaluation (case S7): a response began with the segment
+    "Chart without loading skill fully? Must load skill." before the real answer. A segment is dropped
+    only if it is short (< 200 chars), matches process-note wording, and a substantive answer segment
+    follows it, so a genuine short answer is never removed."""
+    if len(texts) < 2:
+        return texts
+    kept = []
+    for i, t in enumerate(texts):
+        later_substantive = any(len(x) >= 200 for x in texts[i + 1 :])
+        if len(t) < 200 and _PROCESS_NOTE.search(t) and later_substantive:
+            continue
+        kept.append(t)
+    return kept
+
+
 def parse_response(question: str, resp: dict[str, Any], latency_s: float = 0.0) -> AgentAnswer:
     texts: list[str] = []
     citations: list[Citation] = []
@@ -199,6 +223,7 @@ def parse_response(question: str, resp: dict[str, Any], latency_s: float = 0.0) 
             suggestions = [
                 s.get("query", "") for s in item.get("suggested_queries", []) if s.get("query")
             ]
+    texts = drop_process_notes(texts)
     text, redacted = redact("\n\n".join(texts))
     seen: set[str] = set()
     unique_citations = [c for c in citations if not (c.chunk_id in seen or seen.add(c.chunk_id))]

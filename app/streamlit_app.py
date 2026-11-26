@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import streamlit as st
 
 from supplychain_copilot.agent.client import AgentAnswer, CopilotAgent
+from supplychain_copilot.observability import build_log_record, log_request
 from supplychain_copilot.ui import charts, components
 from supplychain_copilot.ui.cache import AnswerCache
 from supplychain_copilot.ui.citations import build_sources
@@ -40,7 +41,10 @@ st.set_page_config(page_title="SupplyChain Copilot", page_icon="📦", layout="w
 def services() -> SimpleNamespace:
     if "services" not in st.session_state:
         st.session_state.services = SimpleNamespace(
-            agent=CopilotAgent(), data=DashboardData(), save_feedback=save_feedback
+            agent=CopilotAgent(),
+            data=DashboardData(),
+            save_feedback=save_feedback,
+            log_request=log_request,
         )
     return st.session_state.services
 
@@ -132,6 +136,9 @@ def ask(question: str, force_live: bool = False) -> None:
             cache.put(question, answer, has_history)
         sources = build_sources(answer.citations, _chunk_meta(answer))
         components.answer_block(answer, sources, note=CACHED_NOTE if cached is not None else None)
+    svc.log_request(
+        build_log_record(answer, "app", st.session_state.session_id, cached=cached is not None)
+    )
     st.session_state.messages.append(
         {
             "role": "assistant",

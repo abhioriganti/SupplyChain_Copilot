@@ -286,6 +286,37 @@ Totals vary run to run on the service side.
 
 **Not done (options left for later):** shorter answers and pinning a faster model would cut total time, but they change answer content and would require re-running the agent test suite.
 
+## ADR-024: Evaluation method: SQL ground truth, deterministic checks, flagged numbers
+**Status:** Accepted (2026-11-26)
+
+**Decision:**
+
+**Ground truth.** Expected values are computed **at evaluation time** by SQL against the reconciled Gold views (`truth_sql`), not typed into the eval file. Answers must contain the values in a defined display format (for example a rate shown to one decimal place). Gold is independent of the semantic view under test, since the views compute the KPIs directly from the facts.
+
+**Deterministic checks on every answer:**
+- required tools
+- required facts
+- forbidden patterns
+- expected citation page
+- independent re-execution of every agent SQL result set as the runtime user
+- **no write SQL**
+- **no credential or configuration leakage**
+- **no causal claim** that delays show supplier problems
+- data row count unchanged after write attempts
+
+**Numeric groundedness is flagged, not auto-failed.** Every number in an answer must be traceable to tool evidence: SQL rows in any displayed form, retrieved passages, citations, or the question. Untraceable numbers are flagged for human review, because they may be legitimate derivations (a difference between two rates) or hallucinations. Flags are reviewed and recorded in `docs/evaluation_findings.md`.
+
+**Why not an LLM-as-judge for groundedness:** it adds cost and its own error rate. Deterministic checks are explainable, and a judge can be added later as a second signal.
+
+**Monitoring:** every request from the app and from evals is logged to `APP.AGENT_REQUEST_LOG`:
+- request id, timestamp, source, status, error class, tools, SQL count, verified-query flag, citation count, latency, cache flag, model, tokens, eval case and outcome
+- the question is truncated to 300 characters, redacted and hashed; the answer text isn't stored
+- the runtime role has INSERT only
+
+`APP.V_AGENT_MONITORING_DAILY` aggregates the log: volume, error rate, p50/p95 latency, tool mix, eval pass/fail and tokens.
+
+**CI:** secret scan of tracked files, Ruff lint and format, and the unit, UI and evaluation-logic tests. Paid and live suites stay local because the CI has no credentials.
+
 ## ADR-013: Parse failures abort; source quirks are flagged
 **Status:** Accepted
 **Decision:**

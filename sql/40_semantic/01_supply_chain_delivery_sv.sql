@@ -61,6 +61,9 @@ CREATE OR REPLACE SEMANTIC VIEW SUPPLY_CHAIN_DELIVERY_SV
     orders.order_month AS ORDER_MONTH
       WITH SYNONYMS = ('month')
       COMMENT = 'First day of the order month. Markets rotate over time in this dataset, so month-over-month changes mostly reflect which market is present.',
+    orders.order_quarter AS DATE_TRUNC('QUARTER', ORDER_DATE)
+      WITH SYNONYMS = ('quarter', 'fiscal quarter', 'calendar quarter')
+      COMMENT = 'First day of the order quarter. Added in Phase 8: without it, quarterly questions made Analyst fall back to raw-table SQL, which the read-only runtime role correctly denied.',
     orders.order_year AS YEAR(ORDER_DATE)
       WITH SYNONYMS = ('year')
       COMMENT = 'Calendar year of the order.',
@@ -184,3 +187,6 @@ CREATE OR REPLACE SEMANTIC VIEW SUPPLY_CHAIN_DELIVERY_SV
       SQL 'SELECT * FROM SEMANTIC_VIEW(SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV METRICS orders.total_orders, orders.eligible_shipments, orders.late_shipments, orders.late_delivery_rate, orders.on_time_delivery_rate, orders.avg_actual_shipping_days, orders.avg_days_late, order_lines.total_revenue)'
     )
   );
+
+-- CREATE OR REPLACE drops grants: re-grant the read-only runtime role (Phase 6/8).
+GRANT SELECT ON SEMANTIC VIEW SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV TO ROLE SCC_APP_ROLE;

@@ -1,6 +1,32 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 7, Streamlit application · **Status:** ✅ **Phase 7 complete** (2026-11-26). Next is Phase 8.
+**Interview:** 2026-12-08 · **Current phase:** 8, Evaluation, reliability, security and observability · **Status:** ✅ **Phase 8 complete** (2026-11-26).
+
+## Phase 8: evaluation, reliability, security and observability (2026-11-26)
+
+### Run
+```powershell
+.venv\Scripts\python scripts\run_sql_file.py sql\80_app\02_monitoring.sql          # request log + monitoring view
+.venv\Scripts\python -m supplychain_copilot.evaluation.runner --yes               # 34 cases (~32 paid agent runs)
+.venv\Scripts\python scripts\check_secrets.py                                     # also runs in CI
+```
+
+### Completed and verified
+| Item | Evidence |
+|---|---|
+| Eval set | `eval/eval_set_v2.json`: **34 cases**. 8 structured, 5 document, 4 hybrid, 4 ambiguous, 4 unsupported, 7 security (deletion, credential and system-prompt injection, destructive SQL in "admin mode", PII, confidential pricing, embedded instruction injection, unauthorised email action), 2 error handling. |
+| Ground truth | Computed at run time from the reconciled Gold views (`truth_sql`); answers must contain the values |
+| Checks | Per case: tools, facts, ground truth, forbidden patterns, citation page, SQL reconciliation, data unchanged. Every case: **governed SQL only**, no write SQL, no leak (credentials or internal names), no causal supplier claim. Untraceable numbers are flagged for review. |
+| Results | **Run 1: 30/33. Run 2: 33/33 (review found the U4 issue). Run 3: 34/34.** Privilege probes 8/8 every run. SQL suites 38/38 and 13/13. |
+| Issues found and fixed (retested) | (1) agent-computed sums, margins and projection ranges → instructions; (2) leaked process note → instructions plus client guard; (3) **missing quarter dimension made Analyst bypass the semantic view (blocked by least privilege) and leak internal names in the error** → quarter dimension, error-handling instruction, `governed_sql` and leak checks. Also 5 evaluator false positives and negatives, each corrected with a regression test. |
+| Retrieval | Phase 5 measured results included: hit@1 96.7%, hit@5 100%, MRR 0.983, 660/660 citations intact |
+| Monitoring | `APP.AGENT_REQUEST_LOG` (INSERT-only for the runtime role; SELECT denied, tested live) and `APP.V_AGENT_MONITORING_DAILY`. The app and evals log request id, status, error class, tools, SQL count, citations, latency, cache, model, tokens and eval outcome; no answer text or secrets. The 3 runs are reproduced from the log alone. |
+| Reliability | 13 failure scenarios mapped to behaviour and tests (`docs/monitoring_and_reliability.md`), including live tests for a missing agent → fallback and empty retrieval → no passages |
+| CI | GitHub Actions: secret scan, Ruff lint and format, pytest (no Snowflake). `scripts/check_secrets.py` is unit-tested against planted secrets. |
+| Docs | `docs/evaluation_report.md` (generated), `docs/evaluation_findings.md` (human review), `docs/monitoring_and_reliability.md`, ADR-024 |
+
+### Limitations
+See `docs/evaluation_findings.md` → "What the evaluation does and doesn't establish": developer-written labels, single samples of a non-deterministic model, phrase-based fact checks, and no in-document injection, load or multi-turn testing.
 
 ## Phase 7b: latency UX: streaming and session cache (2026-11-26)
 

@@ -19,7 +19,11 @@ jobs:
           cache: pip
       - name: Install
         run: pip install -e ".[dev]"
-      - name: Ruff
+      - name: Secret scan (tracked files)
+        run: python scripts/check_secrets.py
+      - name: Ruff lint
         run: ruff check .
-      - name: Unit tests (no Snowflake; no secrets in CI)
+      - name: Ruff format check
+        run: ruff format --check .
+      - name: Unit, UI and evaluation-logic tests (no Snowflake, no Cortex, no secrets in CI)
         run: pytest -m "not snowflake"

@@ -135,6 +135,7 @@ def _app(agent_answer: AgentAnswer | None = None, data=None, saved=None) -> AppT
         save_feedback=(lambda rec: saved.append(rec) or "snowflake")
         if saved is not None
         else (lambda rec: "snowflake"),
+        log_request=lambda rec: "test",
     )
     return at
 

@@ -240,7 +240,10 @@ def _app(agent):
     st.cache_data.clear()
     at = AppTest.from_file(APP, default_timeout=30)
     at.session_state["services"] = SimpleNamespace(
-        agent=agent, data=FakeData(), save_feedback=lambda r: "snowflake"
+        agent=agent,
+        data=FakeData(),
+        save_feedback=lambda r: "snowflake",
+        log_request=lambda r: "test",
     )
     return at
 
