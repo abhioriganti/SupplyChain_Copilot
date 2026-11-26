@@ -12,12 +12,17 @@ gatherUsageStats = false
 # Light, neutral enterprise theme (deliberately not any company's brand colours).
 [theme]
 base = "light"
+# Inter from Google Fonts; falls back to the system sans-serif offline.
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+headingFontWeights = [700, 650, 600, 600, 600, 600]
+baseFontSize = 15
 primaryColor = "#0F6E8C"
-backgroundColor = "#F5F8FB"
-secondaryBackgroundColor = "#EAF1F6"
-textColor = "#1F2A37"
+backgroundColor = "#F4F7FA"
+secondaryBackgroundColor = "#EDF2F7"
+textColor = "#1E293B"
 linkColor = "#0F6E8C"
-borderColor = "#D9E3EC"
+borderColor = "#E2E8F0"
 showWidgetBorder = true
 baseRadius = "0.65rem"
 buttonRadius = "0.65rem"

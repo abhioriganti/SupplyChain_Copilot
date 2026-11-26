@@ -32,6 +32,7 @@ SUGGESTED = [
     "Which shipping mode has the best on-time performance?",
     "What supply-chain risks does the annual report describe?",
 ]
+CHART_CONFIG = {"displayModeBar": False}  # cleaner charts for a business audience
 HISTORY_TURNS = 3  # prior Q&A pairs sent to the agent for follow-up questions
 CACHED_NOTE = "♻️ Reused from earlier in this session (no new agent call). Use “Ask again live” for a fresh run."
 
@@ -195,19 +196,17 @@ except Exception:  # noqa: BLE001 - show a friendly message, never a stack trace
     )
 
 with st.sidebar:
-    st.subheader("Try a question")
+    st.markdown('<div class="scc-side-h">Try a question</div>', unsafe_allow_html=True)
     for q in SUGGESTED:
         if st.button(q, key=f"sugg_{hash(q)}", width="stretch"):
             st.session_state.pending = q
-    st.divider()
     if st.button("🧹 Clear conversation", width="stretch"):
         st.session_state.messages = []
         st.session_state.answer_cache.clear()
         st.rerun()
-    st.caption("Agent: `SCC_DB.AI.SUPPLY_CHAIN_COPILOT` · runtime role `SCC_APP_ROLE` (read-only)")
-    st.caption(
-        "Tools: Cortex Analyst over a governed semantic view · Cortex Search over 3 public documents"
-    )
+    st.divider()
+    components.system_status(dashboard["kpis"] if dashboard else None)
+    st.caption("Agent `SCC_DB.AI.SUPPLY_CHAIN_COPILOT` · Cortex Analyst + Cortex Search")
 
 tab_chat, tab_dash, tab_sources, tab_incidents = st.tabs(
     ["💬 Ask the Copilot", "📈 Delivery dashboard", "📚 Sources", "🚨 Incidents (simulated)"]
@@ -230,10 +229,9 @@ with tab_chat:
             else:
                 st.markdown(msg["text"])
     if not st.session_state.messages:
-        st.markdown(
-            "Ask about **delivery performance** (governed metrics), **supplier requirements** "
-            "(public documents), or **both at once**. Pick a suggested question in the sidebar to start."
-        )
+        picked = components.welcome()
+        if picked:
+            st.session_state.pending = picked
     question = st.chat_input("Ask about delivery metrics or supplier procedures…")
     pending, st.session_state.pending = st.session_state.pending, None
     live, st.session_state.pending_live = st.session_state.pending_live, False
@@ -245,31 +243,44 @@ with tab_dash:
     if dashboard is None:
         st.info("Charts appear when live metrics are available.")
     else:
-        st.plotly_chart(charts.late_rate_by_region(dashboard["regions"]), width="stretch")
-        st.caption(
-            "Region late rates fall in a narrow band; small regions (e.g. Central Africa, 533 eligible "
-            "shipments) shouldn't be over-interpreted."
-        )
-        c1, c2 = st.columns(2)
-        with c1:
-            st.plotly_chart(charts.shipping_mode_performance(dashboard["modes"]), width="stretch")
-            st.caption(
-                "Shipping mode separates late from on-time far more than region does (descriptive, not causal)."
+        with st.container(border=True, key="card_regions"):
+            st.plotly_chart(
+                charts.late_rate_by_region(dashboard["regions"]),
+                width="stretch",
+                config=CHART_CONFIG,
             )
-        with c2:
-            st.plotly_chart(charts.monthly_late_rate(dashboard["monthly"]), width="stretch")
             st.caption(
-                "⚠️ The sample dataset contains different markets in different months, so month-over-month "
-                "changes mostly reflect market mix, not operational change. Gaps mean the market is absent; "
+                "Region late rates fall in a narrow band; small regions (e.g. Central Africa, 533 "
+                "eligible shipments) shouldn't be over-interpreted."
+            )
+        c1, c2 = st.columns(2)
+        with c1, st.container(border=True, key="card_modes"):
+            st.plotly_chart(
+                charts.shipping_mode_performance(dashboard["modes"]),
+                width="stretch",
+                config=CHART_CONFIG,
+            )
+            st.caption(
+                "Shipping mode separates late from on-time far more than region does (descriptive, "
+                "not causal)."
+            )
+        with c2, st.container(border=True, key="card_monthly"):
+            st.plotly_chart(
+                charts.monthly_late_rate(dashboard["monthly"]), width="stretch", config=CHART_CONFIG
+            )
+            st.caption(
+                "⚠️ Different markets appear in different months, so month-over-month changes mostly "
+                "reflect market mix, not operational change. Gaps mean the market is absent; "
                 "market-months with fewer than 100 eligible shipments are hidden."
             )
 
-with tab_sources:
+with tab_sources, st.container(border=True, key="card_sources"):
+    st.markdown("#### Indexed public documents")
     if dashboard is not None:
         components.sources_table(dashboard["documents"])
     st.caption(
-        "Citations link to the public PDF at the cited page. Document passages are pinned by SHA-256 and "
-        "every word is verified to appear on its cited page (see docs/document_extraction_report.md)."
+        "Citations link to the public PDF at the cited page. Passages are pinned by SHA-256, and every "
+        "word is verified to appear on its cited page (see docs/document_extraction_report.md)."
     )
 
 with tab_incidents:

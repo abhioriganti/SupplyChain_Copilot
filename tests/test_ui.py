@@ -338,11 +338,27 @@ def test_page_renders_header_disclaimer_and_live_kpis():
     at = _app()
     at.run()
     assert not at.exception
-    assert at.title[0].value == "SupplyChain Copilot"
-    assert any("not a Worthington Enterprises application" in i.value for i in at.info)
-    metrics = {m.label: m.value for m in at.metric}
-    assert metrics["Unique orders"] == "65,752" and metrics["Late-delivery rate"] == "57.3%"
-    assert metrics["Avg shipping duration"] == "3.50 days" and metrics["Indexed documents"] == "3"
+    html = " ".join(m.value for m in at.markdown)
+    assert 'class="scc-name">SupplyChain Copilot<' in html
+    assert "not a Worthington Enterprises application" in html  # disclaimer always visible
+    for label, value in [
+        ("Unique orders", "65,752"),
+        ("Late-delivery rate", "57.3%"),
+        ("Avg shipping duration", "3.50 days"),
+        ("Indexed documents", ">3<"),
+    ]:
+        assert label in html and value in html, (label, value)
+    assert "of " in html and "eligible · canceled excluded" in html  # governed definition shown
+
+
+def test_welcome_card_sends_full_suggested_question():
+    at = _app()
+    at.run()
+    card = next(b for b in at.button if b.key == "cap_btn_2")
+    assert "Late regions" in card.label  # short label on the card
+    card.click().run()
+    asked = at.session_state["services"].agent.questions
+    assert asked and asked[0].startswith("Which regions have the highest delayed-shipment rates")
 
 
 def test_hybrid_question_shows_answer_sources_and_sql():
