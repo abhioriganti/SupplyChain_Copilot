@@ -9,5 +9,23 @@ headless = true
 [browser]
 gatherUsageStats = false
 
+# Light, neutral enterprise theme (deliberately not any company's brand colours).
 [theme]
-primaryColor = "#3D5A80"
+base = "light"
+primaryColor = "#0F6E8C"
+backgroundColor = "#F5F8FB"
+secondaryBackgroundColor = "#EAF1F6"
+textColor = "#1F2A37"
+linkColor = "#0F6E8C"
+borderColor = "#D9E3EC"
+showWidgetBorder = true
+baseRadius = "0.65rem"
+buttonRadius = "0.65rem"
+metricValueFontWeight = 700
+metricValueFontSize = "1.85rem"
+dataframeHeaderBackgroundColor = "#EAF1F6"
+chartCategoricalColors = ["#0F6E8C", "#E07A5F", "#2A9D8F", "#E9B949", "#6D597A"]
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F2F6F9"

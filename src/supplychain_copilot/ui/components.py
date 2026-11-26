@@ -21,9 +21,62 @@ TOOL_LABELS = {
 }
 
 
+CAPABILITIES = (
+    "📊 Governed semantic layer",
+    "📄 Cited public documents",
+    "🔒 Read-only runtime role",
+    "🧑‍⚖️ Human-in-the-loop approvals",
+)
+
+# Presentation only. Selectors use Streamlit's stable data-testid attributes and st-key-* classes.
+STYLES = """
+<style>
+.block-container { padding-top: 1.6rem; max-width: 1240px; }
+.st-key-hero {
+  background: linear-gradient(120deg, #0F6E8C 0%, #1B8FA6 55%, #5FB3B3 100%);
+  border-radius: 1rem; padding: 1.4rem 1.6rem 1.1rem; margin-bottom: .4rem;
+  box-shadow: 0 6px 20px rgba(15, 110, 140, .18);
+}
+.st-key-hero h1 { color: #FFFFFF !important; font-weight: 750; letter-spacing: -.01em;
+  padding: 0 !important; margin: 0 !important; }
+.st-key-hero [data-testid="stCaptionContainer"] p { color: #E3F4F7 !important; font-size: 1.02rem; }
+.scc-pills { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .55rem; }
+.scc-pill { background: rgba(255,255,255,.16); color: #FFFFFF; border: 1px solid rgba(255,255,255,.35);
+  border-radius: 999px; padding: .18rem .7rem; font-size: .82rem; font-weight: 550; }
+[data-testid="stAlert"] { border-radius: .75rem; }
+[data-testid="stMetric"] { background: #FFFFFF; border-top: 4px solid #0F6E8C !important;
+  box-shadow: 0 2px 10px rgba(31, 42, 55, .06); }
+[data-testid="stMetricValue"] { color: #0F3D4C; }
+[data-testid="stMetricLabel"] p { font-weight: 600; color: #4B5B6B; }
+[role="tablist"] { gap: .4rem; border-bottom: none !important; box-shadow: none !important; }
+[data-testid="stTab"] { background: #FFFFFF; border: 1px solid #D9E3EC !important;
+  border-radius: 999px !important; padding: .35rem 1rem !important; }
+[data-testid="stTab"]:hover { border-color: #0F6E8C !important; }
+[data-testid="stTab"][aria-selected="true"] { background: #0F6E8C; border-color: #0F6E8C !important; }
+[data-testid="stTab"][aria-selected="true"] p { color: #FFFFFF !important; }
+[data-testid="stMetricValue"] > div { overflow: visible; text-overflow: clip; }
+[data-testid="stSidebar"] { border-right: 1px solid #D9E3EC; }
+[data-testid="stSidebar"] .stButton button { justify-content: flex-start; text-align: left;
+  background: #F7FAFC; font-size: .9rem; line-height: 1.35; }
+[data-testid="stSidebar"] .stButton button:hover { border-color: #0F6E8C; color: #0F6E8C; }
+[data-testid="stChatMessage"] { background: #FFFFFF; border: 1px solid #E3EAF1; border-radius: .9rem;
+  box-shadow: 0 1px 6px rgba(31, 42, 55, .04); }
+[data-testid="stExpander"] details { background: #FFFFFF; }
+</style>
+"""
+
+
+def inject_styles() -> None:
+    st.markdown(STYLES, unsafe_allow_html=True)  # static CSS only; no user or model content
+
+
 def header() -> None:
-    st.title("SupplyChain Copilot")
-    st.caption("AI-powered supply-chain analytics and supplier knowledge")
+    inject_styles()
+    with st.container(key="hero"):
+        st.title("SupplyChain Copilot")
+        st.caption("AI-powered supply-chain analytics and supplier knowledge, on Snowflake Cortex")
+        pills = "".join(f'<span class="scc-pill">{c}</span>' for c in CAPABILITIES)
+        st.markdown(f'<div class="scc-pills">{pills}</div>', unsafe_allow_html=True)
     st.info(DISCLAIMER, icon="ℹ️")
 
 
@@ -33,21 +86,25 @@ def kpi_row(k: Kpis) -> None:
         "Unique orders",
         f"{k.total_orders:,}",
         help="Distinct orders (one shipment per order). Semantic view metric total_orders.",
+        border=True,
     )
     c2.metric(
         "Late-delivery rate",
         f"{k.late_delivery_rate:.1%}",
         help=f"Late ÷ eligible shipments ({k.late_shipments:,} of {k.eligible_shipments:,}); canceled excluded.",
+        border=True,
     )
     c3.metric(
         "Avg shipping duration",
         f"{k.avg_shipping_days:.2f} days",
         help="Average actual shipping days, eligible shipments.",
+        border=True,
     )
     c4.metric(
         "Indexed documents",
         f"{k.documents}",
         help=f"{k.chunks} searchable passages with page-level citations.",
+        border=True,
     )
     st.caption(
         "KPIs are queried live from the governed semantic view `SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV`, "

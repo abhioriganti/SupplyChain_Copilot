@@ -6,14 +6,28 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-MARKET_COLORS = {
+MARKET_COLORS = {  # matches chartCategoricalColors in .streamlit/config.toml
     "Africa": "#E07A5F",
-    "Europe": "#3D5A80",
-    "LATAM": "#81B29A",
-    "Pacific Asia": "#F2CC8F",
+    "Europe": "#0F6E8C",
+    "LATAM": "#2A9D8F",
+    "Pacific Asia": "#E9B949",
     "USCA": "#6D597A",
 }
-_LAYOUT = dict(margin=dict(l=10, r=10, t=50, b=10), legend_title_text="Market", font=dict(size=12))
+PRIMARY = "#0F6E8C"
+_GRID = "#E3EAF1"
+_LAYOUT = dict(
+    margin=dict(l=10, r=10, t=50, b=10),
+    legend_title_text="Market",
+    font=dict(size=12, color="#1F2A37"),
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+)
+
+
+def _grid(fig: go.Figure) -> go.Figure:
+    fig.update_xaxes(gridcolor=_GRID, zerolinecolor=_GRID)
+    fig.update_yaxes(gridcolor=_GRID, zerolinecolor=_GRID)
+    return fig
 
 
 def late_rate_by_region(df: pd.DataFrame, top_n: int = 23) -> go.Figure:
@@ -41,7 +55,7 @@ def late_rate_by_region(df: pd.DataFrame, top_n: int = 23) -> go.Figure:
         yaxis=dict(title=None, categoryorder="total ascending"),
         height=620,
     )
-    return fig
+    return _grid(fig)
 
 
 def shipping_mode_performance(df: pd.DataFrame) -> go.Figure:
@@ -55,7 +69,7 @@ def shipping_mode_performance(df: pd.DataFrame) -> go.Figure:
         x=labels,
         y=d["ON_TIME_DELIVERY_RATE"],
         name="On-time rate",
-        marker_color="#3D5A80",
+        marker_color=PRIMARY,
         text=[f"{v:.1%}" for v in d["ON_TIME_DELIVERY_RATE"]],
         textposition="outside",
         customdata=list(zip(d["AVG_ACTUAL_SHIPPING_DAYS"], d["ELIGIBLE_SHIPMENTS"], strict=False)),
@@ -69,7 +83,7 @@ def shipping_mode_performance(df: pd.DataFrame) -> go.Figure:
         showlegend=False,
         height=420,
     )
-    return fig
+    return _grid(fig)
 
 
 def monthly_late_rate(df: pd.DataFrame, min_shipments: int = 100) -> go.Figure:
@@ -104,4 +118,4 @@ def monthly_late_rate(df: pd.DataFrame, min_shipments: int = 100) -> go.Figure:
         xaxis=dict(title=None),
         height=420,
     )
-    return fig
+    return _grid(fig)
