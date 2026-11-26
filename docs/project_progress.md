@@ -15,9 +15,10 @@ Feature F from the brief. Design in ADR-027; details and how to run it in `docs/
 | Tests | 17 incident tests (model, service, API, workflow graph, plain-text excerpt, live Snowflake chain) and 2 new UI tests. Privilege probes **13 of 13** (5 new: UPDATE, DELETE and TRUNCATE on the log and direct reads are denied; the status view is allowed). |
 | Live run | `INC-9BB8473DFE`: CREATED → DRAFTED (SQAM §7.1/§7.2/§7.4 cited) → SUBMITTED → self-approval refused and form re-opened → APPROVED by a different person → ACTION_SIMULATED. SQL chain check intact (6 events, 0 defects). A wrong-token request produced 0 callbacks. |
 | Cost | 1 agent call for the draft (about 0.09 credits); n8n and the API run locally at no cost |
+| Slack notifications | "Approval needed" message with the form button, plus an outcome message, via an Incoming Webhook (URL in `.env` only). Optional and best-effort. Secret scan extended to Slack webhook URLs and tokens. Live run `INC-59911657E7`: message arrived, approved from its link, chain intact (5 events). 2 new tests. |
 
 ### Limitations
-Self-declared identities (production: SSO); single-writer append lock; Timeout and Reject paths covered by unit tests only; a wrong token is dropped silently. See `docs/incident_workflow.md`.
+The approval link opens only on the machine running n8n (localhost). Self-declared identities (production: SSO); single-writer append lock; Timeout and Reject paths covered by unit tests only; a wrong token is dropped silently. See `docs/incident_workflow.md`.
 
 ## Backlog pass 2: retrieved-document injection red-team (2026-11-26)
 Item 4 from `docs/backlog.md`; decision in ADR-026; review in `docs/redteam_findings.md`.

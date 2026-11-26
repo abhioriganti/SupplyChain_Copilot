@@ -94,6 +94,54 @@ def _record(name: str, event_type: str, actor: str, details: str, pos: tuple[int
     }
 
 
+def _slack(name: str, payload_js: str, pos: tuple[int, int]) -> dict:
+    """POST to a Slack Incoming Webhook whose URL (the secret) comes from the container env.
+
+    Best-effort: onError=continueRegularOutput, so a Slack outage never blocks the approval."""
+    return {
+        "id": _id(name),
+        "name": name,
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": list(pos),
+        "onError": "continueRegularOutput",
+        "parameters": {
+            "method": "POST",
+            "url": "={{ $env.SCC_SLACK_WEBHOOK_URL }}",
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify(" + payload_js + ") }}",
+            "options": {},
+        },
+    }
+
+
+APPROVAL_NEEDED_JS = (
+    "{ text: 'Approval needed: ' + INC.incident_id + ' ' + INC.title, blocks: ["
+    "{ type: 'header', text: { type: 'plain_text', text: 'Approval needed: simulated supplier-quality incident' } },"
+    "{ type: 'section', text: { type: 'mrkdwn', text: '*' + INC.incident_id + '*: ' + INC.title"
+    " + '\\nSupplier: ' + INC.supplier + '  |  Part: ' + INC.part + '  |  Severity: *' + INC.severity + '*'"
+    " + '\\nRequested by: ' + INC.requester"
+    " + ($('Record: re-request approval').isExecuted ? '\\n:warning: Form re-opened: the approver must differ from the requester.' : '') } },"
+    "{ type: 'section', text: { type: 'mrkdwn', text: '*Copilot draft* (verify against the cited pages):\\n'"
+    " + (INC.draft_excerpt || '(no draft)').slice(0, 1500) } },"
+    "{ type: 'actions', elements: [ { type: 'button', style: 'primary',"
+    " text: { type: 'plain_text', text: 'Open approval form' }, url: $execution.resumeFormUrl } ] },"
+    "{ type: 'context', elements: [ { type: 'mrkdwn', text: 'Simulated practice record: nothing is sent"
+    " to the supplier. You cannot approve an incident you requested.' } ] } ] }"
+).replace("INC.", INCIDENT + ".")
+
+OUTCOME_JS = (
+    "{ text: INC.incident_id + ': ' + $json.event_type, blocks: ["
+    "{ type: 'section', text: { type: 'mrkdwn', text: ({"
+    " ACTION_SIMULATED: ':white_check_mark: *Approved* by ' + ($('Human approval').item.json['Approver name'] || '')"
+    " + ': corrective action request drafted for ' + INC.supplier + ' (SIMULATED: not sent)',"
+    " REJECTED: ':no_entry: *Rejected* by ' + ($('Human approval').item.json['Approver name'] || ''),"
+    " TIMED_OUT: ':hourglass: *Timed out*: no decision within 24 hours' }[$json.event_type]"
+    " || $json.event_type) + '\\n*' + INC.incident_id + '*: ' + INC.title } } ] }"
+).replace("INC.", INCIDENT + ".")
+
+
 def build() -> dict:
     form_description = (
         "=SIMULATED supplier-quality incident (practice record; nothing will be sent).\n\n"
@@ -212,6 +260,11 @@ def build() -> dict:
             "{ comment: $('Human approval').item.json.Comment || '' }",
             (1540, 400),
         ),
+        # ---- Slack notifications (optional: skipped when SCC_SLACK_WEBHOOK_URL is empty)
+        _if("Slack configured?", "!!$env.SCC_SLACK_WEBHOOK_URL", (550, 520)),
+        _slack("Notify Slack: approval needed", APPROVAL_NEEDED_JS, (660, 680)),
+        _if("Slack configured? (outcome)", "!!$env.SCC_SLACK_WEBHOOK_URL", (1980, 300)),
+        _slack("Notify Slack: outcome", OUTCOME_JS, (2200, 300)),
     ]
 
     def to(name: str) -> list[dict]:
@@ -220,13 +273,19 @@ def build() -> dict:
     connections = {
         "Incident submitted": {"main": [to("Token valid?")]},
         "Token valid?": {"main": [to("Record: awaiting approval"), []]},
-        "Record: awaiting approval": {"main": [to("Human approval")]},
+        "Record: awaiting approval": {"main": [to("Slack configured?")]},
+        "Slack configured?": {"main": [to("Notify Slack: approval needed"), to("Human approval")]},
+        "Notify Slack: approval needed": {"main": [to("Human approval")]},
         "Human approval": {"main": [to("Timed out?")]},
         "Timed out?": {"main": [to("Record: timed out"), to("Approver is requester?")]},
         "Approver is requester?": {"main": [to("Record: re-request approval"), to("Approved?")]},
-        "Record: re-request approval": {"main": [to("Human approval")]},
+        "Record: re-request approval": {"main": [to("Slack configured?")]},
         "Approved?": {"main": [to("Record: approved"), to("Record: rejected")]},
         "Record: approved": {"main": [to("Record: simulated action")]},
+        "Record: simulated action": {"main": [to("Slack configured? (outcome)")]},
+        "Record: rejected": {"main": [to("Slack configured? (outcome)")]},
+        "Record: timed out": {"main": [to("Slack configured? (outcome)")]},
+        "Slack configured? (outcome)": {"main": [to("Notify Slack: outcome"), []]},
     }
     return {
         "id": WORKFLOW_ID,

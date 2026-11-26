@@ -25,6 +25,10 @@ PATTERNS = {
         r"(?i)\b(password|passphrase|private_key|secret|token)\s*[:=]\s*['\"][^'\"\s<>{}]{8,}['\"]"
     ),
     "GitHub token": re.compile(r"\bgh[pousr]_[A-Za-z0-9]{30,}"),
+    "Slack webhook URL": re.compile(
+        r"hooks\.slack\.com/(services|workflows|triggers)/[A-Za-z0-9/_-]{20,}"
+    ),
+    "Slack token": re.compile(r"\bxox[abposr]-[A-Za-z0-9-]{10,}"),
 }
 ALLOW = {"hunter2"}  # dummy values used by redaction tests
 

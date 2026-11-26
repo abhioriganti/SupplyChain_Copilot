@@ -372,6 +372,112 @@
         "jsonBody": "={{ JSON.stringify({ event_type: 'REJECTED', actor: $('Human approval').item.json['Approver name'], details: { comment: $('Human approval').item.json.Comment || '' } }) }}",
         "options": {}
       }
+    },
+    {
+      "id": "6007282a-9f33-5e22-9b86-ded32ace0394",
+      "name": "Slack configured?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        550,
+        520
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "2b58cb26-a9cc-5b8e-8b8d-bb241e3630fc",
+              "leftValue": "={{ !!$env.SCC_SLACK_WEBHOOK_URL }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "4592210e-6b58-5add-8564-d1c212b7df43",
+      "name": "Notify Slack: approval needed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        680
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SCC_SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: 'Approval needed: ' + $('Incident submitted').item.json.body.incident_id + ' ' + $('Incident submitted').item.json.body.title, blocks: [{ type: 'header', text: { type: 'plain_text', text: 'Approval needed: simulated supplier-quality incident' } },{ type: 'section', text: { type: 'mrkdwn', text: '*' + $('Incident submitted').item.json.body.incident_id + '*: ' + $('Incident submitted').item.json.body.title + '\\nSupplier: ' + $('Incident submitted').item.json.body.supplier + '  |  Part: ' + $('Incident submitted').item.json.body.part + '  |  Severity: *' + $('Incident submitted').item.json.body.severity + '*' + '\\nRequested by: ' + $('Incident submitted').item.json.body.requester + ($('Record: re-request approval').isExecuted ? '\\n:warning: Form re-opened: the approver must differ from the requester.' : '') } },{ type: 'section', text: { type: 'mrkdwn', text: '*Copilot draft* (verify against the cited pages):\\n' + ($('Incident submitted').item.json.body.draft_excerpt || '(no draft)').slice(0, 1500) } },{ type: 'actions', elements: [ { type: 'button', style: 'primary', text: { type: 'plain_text', text: 'Open approval form' }, url: $execution.resumeFormUrl } ] },{ type: 'context', elements: [ { type: 'mrkdwn', text: 'Simulated practice record: nothing is sent to the supplier. You cannot approve an incident you requested.' } ] } ] }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "2cb78f3c-079a-58a1-b543-f816e68ea145",
+      "name": "Slack configured? (outcome)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "b6b9b76b-d7c8-5758-9719-87a610dc6f93",
+              "leftValue": "={{ !!$env.SCC_SLACK_WEBHOOK_URL }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "e1de122f-ee44-57cd-9e75-8f461918990f",
+      "name": "Notify Slack: outcome",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SCC_SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Incident submitted').item.json.body.incident_id + ': ' + $json.event_type, blocks: [{ type: 'section', text: { type: 'mrkdwn', text: ({ ACTION_SIMULATED: ':white_check_mark: *Approved* by ' + ($('Human approval').item.json['Approver name'] || '') + ': corrective action request drafted for ' + $('Incident submitted').item.json.body.supplier + ' (SIMULATED: not sent)', REJECTED: ':no_entry: *Rejected* by ' + ($('Human approval').item.json['Approver name'] || ''), TIMED_OUT: ':hourglass: *Timed out*: no decision within 24 hours' }[$json.event_type] || $json.event_type) + '\\n*' + $('Incident submitted').item.json.body.incident_id + '*: ' + $('Incident submitted').item.json.body.title } } ] }) }}",
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -399,6 +505,35 @@
       ]
     },
     "Record: awaiting approval": {
+      "main": [
+        [
+          {
+            "node": "Slack configured?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack configured?": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack: approval needed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Human approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Slack: approval needed": {
       "main": [
         [
           {
@@ -460,7 +595,7 @@
       "main": [
         [
           {
-            "node": "Human approval",
+            "node": "Slack configured?",
             "type": "main",
             "index": 0
           }
@@ -494,6 +629,51 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Record: simulated action": {
+      "main": [
+        [
+          {
+            "node": "Slack configured? (outcome)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: rejected": {
+      "main": [
+        [
+          {
+            "node": "Slack configured? (outcome)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: timed out": {
+      "main": [
+        [
+          {
+            "node": "Slack configured? (outcome)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack configured? (outcome)": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack: outcome",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },

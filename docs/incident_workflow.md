@@ -36,6 +36,28 @@ Streamlit "Incidents" tab                       n8n 2.47.5 (Docker, 127.0.0.1:56
 | Failure is recorded | A failed draft or an unreachable n8n becomes an `ERROR` event; the incident is kept and can be resubmitted | Unit and UI tests |
 | Bounded input | Length limits, a severity enum, credential redaction, and callback details truncated to 500 characters | Unit and API tests |
 
+## Slack notifications (optional)
+The approver doesn't have to watch n8n: when an approval is needed, the workflow posts to a Slack channel.
+
+| When | Message |
+|---|---|
+| Approval needed (and again if the form is re-opened after a self-approval attempt) | Incident, supplier, part, severity, requester, the Copilot draft, and an **Open approval form** button |
+| Decision recorded | ✅ Approved by … (corrective action request drafted, SIMULATED: not sent) · ⛔ Rejected by … · ⌛ Timed out |
+
+**Design:**
+- **Slack Incoming Webhook, not an n8n Slack credential.** The webhook URL is the only secret. It lives in `.env` (gitignored) as `SCC_SLACK_WEBHOOK_URL` and reaches n8n through the container environment, exactly like the workflow token. The workflow JSON holds `$env.SCC_SLACK_WEBHOOK_URL`, and n8n stores no Slack credential.
+- **Optional and best-effort.** An IF node skips Slack when the URL is empty. The Slack nodes use `onError: continueRegularOutput`, so a Slack outage never blocks an approval, and the audit log is unaffected either way.
+- **The approval itself is unchanged.** The message links to the same n8n form, so the named approver, separation of duties and the audit trail work exactly as tested above. Anyone in the channel can open the form; the API still rejects the requester.
+- **Leak protection.** `scripts/check_secrets.py` (CI) now flags Slack webhook URLs and `xox…` tokens. The app's bot and app tokens are not used.
+
+**Setup:**
+1. In Slack's developer site (api.slack.com/apps), create an app from **Pick features** in your workspace.
+2. Under **Incoming Webhooks**, add a webhook for a channel.
+3. Put the URL in `.env`.
+4. Run `docker compose --env-file .env -f n8n/docker-compose.yml up -d`, then re-import, publish and restart (see **Run it**).
+
+**Live check (`INC-59911657E7`):** the Slack message arrived with the form button. The approver approved from it, and the trail was CREATED → DRAFTED → SUBMITTED → APPROVED (by a person other than the requester) → ACTION_SIMULATED, with the SQL chain check intact (5 events). The form link points to `localhost:5678`, so it opens only on the machine running n8n. A shared deployment would need n8n behind an HTTPS hostname and SSO.
+
 ## Live end-to-end run (2026-11-26, incident `INC-9BB8473DFE`)
 | # | Event | Actor | Detail |
 |---|---|---|---|
@@ -66,4 +88,6 @@ docker restart scc-n8n                                                     # reg
 - **Not tested live:** the 24-hour timeout (`TIMED_OUT`) and the Reject path. Both are covered by the workflow-graph and state-machine unit tests.
 - **A wrong token is dropped silently.** The webhook answers "Workflow was started" (respond-immediately mode), so a caller with a bad token sees success while nothing is recorded. The incident simply stays `DRAFTED` and can be resubmitted.
 - **Test incidents are kept.** The live pytest writes one incident marked "(automated test)". The log is append-only for the runtime role by design, so test incidents are not deleted.
-- The n8n AI Assistant and telemetry are left off; the editor needs a local owner account (n8n 2.x has no supported way to disable login).
+- The editor opens on n8n's "AI Assistant" welcome page by default. Choose **Set up later in Settings**, or open `/home/workflows`. The Assistant would send workflow content to n8n's cloud, so it isn't enabled.
+- The n8n log shows "Failed to start Python task runner… Python 3 is missing". This is harmless here, because the workflow has no Python Code nodes.
+- Telemetry is left off; the editor needs a local owner account (n8n 2.x has no supported way to disable login).

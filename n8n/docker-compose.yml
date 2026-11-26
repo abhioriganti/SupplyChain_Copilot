@@ -8,7 +8,7 @@
 # * The shared secret SCC_WORKFLOW_TOKEN is read from the project .env (gitignored) and passed in
 #   as an environment variable; it is never stored in the workflow JSON. n8n 2.x blocks $env in
 #   expressions by default, so N8N_BLOCK_ENV_ACCESS_IN_NODE=false is required. This container's
-#   environment holds only n8n settings and that token.
+#   environment holds only n8n settings, that token and the optional Slack webhook URL.
 services:
   n8n:
     image: docker.io/n8nio/n8n:2.47.5
@@ -29,6 +29,8 @@ services:
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       SCC_WORKFLOW_TOKEN: ${SCC_WORKFLOW_TOKEN:?set SCC_WORKFLOW_TOKEN in .env}
       SCC_INCIDENT_API: http://host.docker.internal:8077
+      # Optional Slack Incoming Webhook (a secret URL) for approval notifications; empty = no Slack.
+      SCC_SLACK_WEBHOOK_URL: ${SCC_SLACK_WEBHOOK_URL:-}
     volumes:
       - n8n-data:/home/node/.n8n
       - ./workflows:/workflows:ro

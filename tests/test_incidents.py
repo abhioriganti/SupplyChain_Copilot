@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,6 +15,7 @@ from supplychain_copilot.incidents.service import TOKEN_HEADER, IncidentService,
 from supplychain_copilot.incidents.store import InMemoryStore
 
 TOKEN = "t" * 32
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _input(**kw) -> IncidentInput:
@@ -287,8 +289,11 @@ def test_workflow_graph_covers_every_outcome():
             assert all(c["node"] in names for c in branch)
     wait = next(n for n in w["nodes"] if n["type"] == "n8n-nodes-base.wait")
     assert wait["parameters"]["resume"] == "form" and wait["parameters"]["limitWaitTime"]
-    # self-approval loops back to the form instead of ending the workflow
-    assert w["connections"]["Record: re-request approval"]["main"][0][0]["node"] == "Human approval"
+    # self-approval loops back to the form (via the optional Slack notification) instead of ending
+    c = w["connections"]
+    assert c["Record: re-request approval"]["main"][0][0]["node"] == "Slack configured?"
+    assert {b[0]["node"] for b in c["Slack configured?"]["main"]} >= {"Human approval"}
+    assert c["Notify Slack: approval needed"]["main"][0][0]["node"] == "Human approval"
 
 
 def test_form_excerpt_is_plain_text():
@@ -299,3 +304,40 @@ def test_form_excerpt_is_plain_text():
         plain_text(md)
         == "Steps under Section 7.1 (PDF p. 27)\n• Confirm within 48 hours.\nDeadlines\n• 2 days"
     )
+
+
+def test_slack_notifications_are_optional_best_effort_and_secret_free():
+    from supplychain_copilot.incidents import n8n_workflow as wf
+
+    w = wf.build()
+    nodes = {n["name"]: n for n in w["nodes"]}
+    for name in ("Notify Slack: approval needed", "Notify Slack: outcome"):
+        n = nodes[name]
+        assert n["parameters"]["url"] == "={{ $env.SCC_SLACK_WEBHOOK_URL }}"
+        assert n["onError"] == "continueRegularOutput"  # Slack down never blocks the approval
+    c = w["connections"]
+    # both the first request and a re-opened form notify, then wait; unconfigured skips Slack
+    assert c["Record: awaiting approval"]["main"][0][0]["node"] == "Slack configured?"
+    assert c["Record: re-request approval"]["main"][0][0]["node"] == "Slack configured?"
+    assert [b[0]["node"] for b in c["Slack configured?"]["main"]] == [
+        "Notify Slack: approval needed",
+        "Human approval",
+    ]
+    for outcome in ("Record: simulated action", "Record: rejected", "Record: timed out"):
+        assert c[outcome]["main"][0][0]["node"] == "Slack configured? (outcome)"
+    body = nodes["Notify Slack: approval needed"]["parameters"]["jsonBody"]
+    assert "$execution.resumeFormUrl" in body and "hooks.slack.com" not in wf.render()
+
+
+def test_secret_scanner_detects_slack_webhooks_and_tokens():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "check_secrets", ROOT / "scripts" / "check_secrets.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    hook = "https://hooks.slack" + ".com/services/T0000/B0000/" + "x" * 24  # assembled at runtime
+    assert mod.PATTERNS["Slack webhook URL"].search(hook)
+    assert mod.PATTERNS["Slack token"].search("xox" + "b-123456789012-abcdef")
+    assert not mod.PATTERNS["Slack webhook URL"].search("SCC_SLACK_WEBHOOK_URL=")

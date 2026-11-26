@@ -362,6 +362,14 @@ Totals vary run to run on the service side.
 - *A mutable status column.* It needs UPDATE and loses history.
 **Evidence:** `docs/incident_workflow.md`. The live run passed through CREATED, DRAFTED, SUBMITTED, a refused self-approval, APPROVED and ACTION_SIMULATED, and the SQL chain check was intact.
 
+**Addendum: approver notifications in Slack (2026-11-26).**
+- **Decision:** Slack Incoming Webhook (URL in `.env`, read via `$env`), best-effort, carrying a link to the same approval form.
+- **Rejected alternatives:**
+  - *An n8n Slack credential (bot token).* It stores a broader credential in n8n.
+  - *Slack "send and wait" approval in the chat.* The approver identity would come from the Slack account, so separation of duties would need rework and re-testing.
+  - *Email.* It needs SMTP credentials.
+- **Evidence:** a live run with a message, an approval from its link and an intact chain.
+
 ## ADR-013: Parse failures abort; source quirks are flagged
 **Status:** Accepted
 **Decision:**
