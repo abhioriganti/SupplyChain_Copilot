@@ -1,6 +1,27 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 2, Snowflake Bronze/Silver/Gold · **Status:** ✅ **Phase 2 complete** (2026-11-25). Next is Phase 3.
+**Interview:** 2026-12-08 · **Current phase:** 3, Snowflake semantic view · **Status:** ✅ **Phase 3 complete** (2026-11-25). Next is Phase 4.
+
+## Phase 3: native semantic view and Cortex Analyst (2026-11-25)
+
+### Completed and verified
+| Item | Evidence |
+|---|---|
+| Semantic view | `SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV`: 4 logical tables, 3 relationships, 6 facts, 21 dimensions, **14 metrics**, synonyms, comments, `AI_SQL_GENERATION`, `AI_QUESTION_CATEGORIZATION`, **3 verified queries**. DDL syntax checked against current docs. |
+| Direct-SQL validation | `semantic.validate_view`: **9 of 9 pass**. All governed metrics equal reconciled Gold (overall, 23 regions, 4 modes, 37 months). Revenue by category sums to the total. Undefined dimension rejected at compile time. |
+| Fan-out behaviour | Order metrics grouped by product category (a many-to-many bridge) equal `COUNT(DISTINCT order)` in **51 of 51** categories. A naive join inflates 29. |
+| Cortex Analyst (REST, `semantic_view`) | `semantic.nl_tests --yes`: **9 of 9 pass**. Generated SQL executed and matched ground truth for all 6 required questions plus revenue and Western Europe. The supplier question correctly got no SQL and an explanation instead. |
+| Governance behaviour observed | All generated SQL references governed metrics via `SEMANTIC_VIEW(... METRICS ...)` and never recomputes them. The monthly question was grouped by month × market as instructed. Q2 used verified query `LATE_RATE_BY_REGION`. |
+| pytest | **44 passed, 1 skipped** live (the skip is the paid Cortex test, run separately: 9/9). **40 passed, 5 skipped** in CI mode. Phase 2 SQL suite re-run: 38 of 38. `ruff` clean. |
+| Docs | `docs/semantic_layer.md`, `docs/business_glossary.md`, `docs/semantic_test_report.md` (generated), ADR-017 |
+
+### Limitations
+- `AI_SQL_GENERATION` guides a model and isn't an enforced rule; the NL test suite is the check.
+- Analyst NL tests cost Cortex credit, so they're opt-in (`SCC_RUN_CORTEX_TESTS=1`) and excluded from CI.
+- Semantic view grants to `SCC_APP_ROLE` are deferred to Phase 4.
+
+### Files (Phase 3)
+`sql/40_semantic/01_supply_chain_delivery_sv.sql`, `src/supplychain_copilot/semantic/{__init__,analyst,validate_view,nl_tests}.py`, `tests/test_semantic.py`, `docs/{semantic_layer,business_glossary,semantic_test_report}.md`, updated `docs/{architecture_decisions,project_progress}.md`, `pyproject.toml`
 
 ## Phase 2: Snowflake Bronze, Silver and Gold (2026-11-25)
 

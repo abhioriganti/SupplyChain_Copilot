@@ -114,6 +114,21 @@ It changes neither row count nor values. Eligibility, late rate, revenue choice 
 **Context:** Snowflake integer division and `AVG` over integers return `NUMBER` with 6 decimal places (e.g. `0.573127`).
 **Decision:** Cast to FLOAT inside the views so governed values aren't silently rounded. Rounding happens at presentation.
 
+## ADR-017: Semantic view design: metrics on their grain's table, one home per term
+**Status:** Accepted (2026-11-25)
+**Decision:**
+- Delivery metrics are defined on `orders` (shipment grain), and revenue, units and profit on `order_lines`.
+- Region and market are defined only on `regions`, even though `FACT_ORDERS` also carries them.
+- Rates are composed from named count metrics (`late_shipments / eligible_shipments`).
+- Analyst behaviour is steered with `AI_SQL_GENERATION` (use metrics, include market for monthly questions, note non-additivity) and `AI_QUESTION_CATEGORIZATION` (no supplier or cause data, no PII).
+- 3 verified queries are marked as onboarding questions.
+
+**Alternatives:**
+- Legacy YAML semantic model on a stage: still supported, but Snowflake recommends semantic views for new work.
+- Exposing `orders.order_region` as well: creates two meanings for "region".
+
+**Finding:** "late rate by category" is a many-to-many path (orders↔lines↔products). Snowflake deduplicates per category rather than erroring. Tested equal to `COUNT(DISTINCT)` in 51 of 51 categories, whereas a naive join inflates 29. The result is correct but non-additive, which is documented and stated in the Analyst instructions.
+
 ## ADR-013: Parse failures abort; source quirks are flagged
 **Status:** Accepted
 **Decision:**
