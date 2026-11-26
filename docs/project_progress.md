@@ -1,6 +1,41 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 5, Cortex Search and document retrieval · **Status:** ✅ **Phase 5 complete** (2026-11-26). Next is Phase 6.
+**Interview:** 2026-12-08 · **Current phase:** 6, Cortex Agent and hybrid RAG · **Status:** ✅ **Phase 6 complete** (2026-11-26). Next is Phase 7 (UI).
+
+## Phase 6: Cortex Agent and hybrid RAG (2026-11-26)
+
+### Build and test
+```powershell
+.venv\Scripts\python scripts\run_sql_file.py sql\70_agent\00_app_role_grants.sql
+# Snowsight as ACCOUNTADMIN (once): sql\70_agent\00c_app_service_user.sql   (needs app key pair)
+.venv\Scripts\python scripts\run_sql_file.py sql\60_search\01_doc_search_service.sql   # adds CITATION_LABEL
+.venv\Scripts\python scripts\run_sql_file.py sql\70_agent\01_supply_chain_copilot_agent.sql
+.venv\Scripts\python -m supplychain_copilot.agent.client "Which regions have the highest late-delivery rates?"
+.venv\Scripts\python -m supplychain_copilot.agent.evaluate --yes        # 12 paid agent runs
+```
+
+### Completed and verified
+| Item | Evidence |
+|---|---|
+| Agent | `SCC_DB.AI.SUPPLY_CHAIN_COPILOT`: tools `delivery_analytics` (semantic view) and `supplier_documents` (Cortex Search, citation label column). Instructions cover routing, source labelling, citations, no causal claims and missing evidence. Budget 120 s / 16K tokens; `tool_not_accessible: reject`. |
+| Runtime identity | **Found and fixed a privilege leak:** secondary roles let the "read-only" role DELETE and read raw tables. The new user `SCC_APP_SVC` holds only `SCC_APP_ROLE` with no secondary roles. Live test: semantic view allowed; Gold/Bronze, DELETE, CREATE and USE ROLE dev denied. |
+| Client | `agent/client.py`: parses text, citations, tool calls, SQL and result sets, search results and usage. Input validation, retries for 429/5xx, typed fallbacks, credential redaction. Fails closed without the app user. |
+| Agent tests | `eval/agent_eval_set.json` → `docs/agent_test_report.md`: **12 of 12 pass**. 3 structured, 3 document, 2 hybrid (including the required question), 2 unsupported, 2 unsafe. |
+| Numbers reconcile | Every agent result set was re-executed as the app user: 5 of 5 match. Values equal the governed Phase 2/3 figures (e.g. Central Africa 60.0%, 320 of 533). |
+| Citations | Expected pages cited: SQAM p.29 and p.30, SCOC p.5, 10-K p.28/29 |
+| Safety behaviour | Delete request refused, no write SQL, data unchanged. Credential and system-prompt injection refused, nothing leaked. Supplier and Worthington-internal questions answered with "not available", without fabrication. |
+| Latency and cost | Median 18.3 s, max 24.1 s. Trial AI meter 0.335 → 1.093 for 12 runs (about 0.06 per run); cap 20. |
+| pytest | 11 offline agent tests plus 1 live privilege test, and 1 paid case suite (opt-in) |
+| Docs | `docs/agent_architecture.md` (tool routing, controls), ADR-020, ADR-021, `docs/agent_test_report.md` (generated) |
+
+### Limitations
+- Routing and wording are model-driven, so tests check facts and forbidden patterns, not exact text.
+- The model may infer context such as "Q3 2026" from today's date.
+- Document prompt-injection resistance is instruction-based and untested against adversarial content.
+- Non-streaming answers take 13–24 s; the UI needs progress or streaming.
+
+### Files (Phase 6)
+`sql/70_agent/{00_app_role_grants,00b_app_role_cortex_grant,00c_app_service_user,01_supply_chain_copilot_agent}.sql`, `sql/60_search/01_doc_search_service.sql` (CITATION_LABEL), `src/supplychain_copilot/agent/{__init__,client,evaluate}.py`, `src/supplychain_copilot/config.py` (`load_app_settings`), `src/supplychain_copilot/snowflake/connection.py` (`app_session`), `retrieval/search_client.py`, `eval/agent_eval_set.json`, `tests/test_agent.py`, `tests/fixtures/agent_hybrid_response.json`, `.env.example`, `scripts/generate_keypair.py`, docs
 
 ## Phase 5: Cortex Search and document retrieval (2026-11-26)
 

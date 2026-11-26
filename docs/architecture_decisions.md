@@ -207,6 +207,36 @@ It changes neither row count nor values. Eligibility, late rate, revenue choice 
 
 **Security:** the service runs with owner's rights. `ACCESS_GROUP` filtering is applied by the client and isn't a security boundary (ADR-009).
 
+## ADR-020: One Cortex Agent, two governed tools, instruction-level routing
+**Status:** Accepted (2026-11-26)
+**Decision:** A single named agent (`SUPPLY_CHAIN_COPILOT`) with:
+- `delivery_analytics` (Analyst over the semantic view, run on `SCC_WH` with a 60 s query timeout)
+- `supplier_documents` (Cortex Search, 5 results, `id_column = CHUNK_ID`, `title_column = CITATION_LABEL`)
+
+Routing, source labelling, citation, no-causation and missing-evidence behaviour are defined in `instructions.orchestration` and `instructions.response`. The budget is 120 s and 16K tokens, with `tool_not_accessible: reject`.
+
+**Alternatives:**
+- LangGraph or a custom Python router calling Analyst and Search separately: more control, but it duplicates what Cortex Agents provides, and the target team uses Snowflake-native agents.
+- Separate agents per question type: forces users to choose.
+
+**Evidence:** 12 of 12 test cases passed (structured, document, hybrid, unsupported and unsafe). SQL results reconcile with independent re-execution, and citations hit the expected pages.
+
+**Tradeoffs:**
+- Routing is model-driven, so it's validated by tests rather than guaranteed.
+- Latency is 13–24 s per answer, which needs streaming or a progress UI.
+- Each answer costs about 0.06 trial credits.
+
+## ADR-021: Runtime least privilege needs a dedicated user, not just a read-only role
+**Status:** Accepted (2026-11-26)
+**Finding (Phase 6 test):** A connection by `SCC_SVC` with primary role `SCC_APP_ROLE` could still SELECT Gold and Bronze tables and run `DELETE` (0 rows matched), because Snowflake activated the user's **secondary roles** (`CURRENT_SECONDARY_ROLES()` = `SCC_DEV_ROLE`, value `ALL`). The agent's SQL runs with the caller's session roles, so a "read-only role" alone didn't make agent SQL read-only.
+**Decision:**
+- Dedicated `SCC_APP_SVC` (`TYPE = SERVICE`, own key pair) holding **only** `SCC_APP_ROLE`, with `DEFAULT_SECONDARY_ROLES = ()`.
+- App SQL sessions also run `USE SECONDARY ROLES NONE`.
+- The client **fails closed** (`ConfigError`) if the app user isn't configured, rather than using developer credentials.
+
+**Verification:** live pytest asserts the app user can query the semantic view and is denied raw tables, DELETE, CREATE and `USE ROLE SCC_DEV_ROLE`.
+**Lesson:** least privilege has to be **tested**, not assumed from grants. ADR-004 is amended: the runtime boundary is the user plus the role, not the role alone.
+
 ## ADR-013: Parse failures abort; source quirks are flagged
 **Status:** Accepted
 **Decision:**

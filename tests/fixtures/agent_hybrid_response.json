@@ -1,0 +1,685 @@
+{
+ "content": [
+  {
+   "tool_use": {
+    "client_side_execute": false,
+    "input": {},
+    "name": "delivery_analytics",
+    "tool_use_id": "tooluse_07409bbe247144b4a60888",
+    "type": "system_agentic_semantic_context"
+   },
+   "type": "tool_use"
+  },
+  {
+   "tool_result": {
+    "content": [
+     {
+      "type": "json",
+      "json": {
+       "note": "semantic context trimmed for fixture"
+      }
+     }
+    ],
+    "name": "delivery_analytics",
+    "status": "success",
+    "tool_use_id": "tooluse_07409bbe247144b4a60888",
+    "type": "system_agentic_semantic_context"
+   },
+   "type": "tool_result"
+  },
+  {
+   "tool_use": {
+    "client_side_execute": false,
+    "input": {
+     "analytical_search": false,
+     "limit": 5,
+     "num_chunks_per_doc": 0,
+     "query": "non-conforming material notification corrective action response time"
+    },
+    "name": "supplier_documents",
+    "tool_use_id": "toolu_bdrk_01VrzGVvgedvTcvb6JdsgrhT",
+    "type": "cortex_search"
+   },
+   "type": "tool_use"
+  },
+  {
+   "tool_use": {
+    "client_side_execute": false,
+    "input": {
+     "semantic_model": "delivery_analytics",
+     "sql": "SELECT * FROM SEMANTIC_VIEW(scc_db.ai.supply_chain_delivery_sv METRICS orders.late_delivery_rate, orders.eligible_shipments, orders.late_shipments DIMENSIONS regions.market, regions.order_region) ORDER BY late_delivery_rate DESC NULLS LAST",
+     "verified_query_used": true
+    },
+    "name": "system_execute_sql",
+    "tool_use_id": "toolu_bdrk_01X2qmkYAZ3LxAYw7eFpv83M",
+    "type": "system_execute_sql"
+   },
+   "type": "tool_use"
+  },
+  {
+   "tool_result": {
+    "content": [
+     {
+      "json": {
+       "search_results": [
+        {
+         "doc_id": "WOR-SQAM-2025-10-23-a96e957153dd",
+         "doc_title": "Supplier Quality Assurance Manual | 7. Supplier Performance Measurements > 7.2 Corrective Action Responses | PDF p. 29",
+         "id": "cs_58b5e1f0-0212-41a9-bd55-b47788e9c5a7",
+         "search_service_name": "supplier_documents",
+         "source_id": 0,
+         "text": "Supplier Quality Assurance Manual - 7. Supplier Performance Measurements > 7.2 Corrective Action Responses\n7.2 Corrective Action Responses\nThe following are time frames for response to non-conformances:\n[Table]\nContainment Completed: 2 working days1; Corrective and Preventative Actions Completed: 14 working days2; Effectiveness Verified: 30 working days\nNote: 1) On receipt of the quality complaint or due to a mutually agreed timeframe 2) After arrival of the Products at Supplier test facility if return is necessary.\nIn addition to correction of the documented problem, suppliers are encouraged to apply the lessons learned to all similar products or processes."
+        },
+        {
+         "doc_id": "WOR-SQAM-2025-10-23-9df67976c830",
+         "doc_title": "Supplier Quality Assurance Manual | 7. Supplier Performance Measurements > 7.1 Non-Conforming Material | PDF p. 27-29",
+         "id": "cs_9f435703-dd90-4fd7-bd12-9b7abf2cb997",
+         "search_service_name": "supplier_documents",
+         "source_id": 1,
+         "text": "Supplier Quality Assurance Manual - 7. Supplier Performance Measurements > 7.1 Non-Conforming Material\n7. SUPPLIER PERFORMANCE MEASUREMENTS\n7.1 Non-Conforming Material\nIt is in the interest of both Worthington and the supplier, to identify and address non-conforming material as quickly as possible. Every effort is taken to investigate and document nonconformances and to notify the supplier immediately.\nSuppliers are expected to respond to any non-conformance and ensure that all receiving plants are protected within 48 hours. Suppliers are required to notify Worthington immediately if it is identified that non-conforming material has been shipped to Worthington.\nAll costs (sorting, handling, shipping, and rework costs) associated with addressing a non-conformance shall be the supplier\u2019s responsibility.\nIf the material is not used by Worthington under deviation, after rework or after repair, non-conforming material will be \u201creturned to supplier\u201d or \u201cscrapped at Worthington\u201d based on supplier\u2019s direction.\nIn the event non-conforming parts or material have been identified at Worthington, suppliers will be notified via the Worthington Supplier Portal and should acknowledge the Non-conformance in the system within 48 hours Supplier should disposition material as \u201cReturn to Vendor\u201d or \u201cScrap at Worthington\u201d in the Worthington Supplier Portal. If not dispositioned by the supplier, Worthington will default to returning the material to the supplier at the cost of the supplier.\nNon-Conformance Ranking Definitions for the Non-conformance ranking are as follows:\nMajor NC:\n\u2022 Significant reduction in production efficiency\n\u2022 Production down time > 15 minutes\n\u2022 Impact to production schedule\n\u2022 Impact to our Customer *If the supplier notifies Worthington of non-conforming material prior to shipment, material will not be considered a major NC.\nMinor NC:\n\u2022 Minor reduction in production efficiency\n\u2022 Production down time < 15 minutes OFI:\n\u2022 Little to no reduction in production efficiency"
+        },
+        {
+         "doc_id": "WOR-SQAM-2025-10-23-d3665f27afd5",
+         "doc_title": "Supplier Quality Assurance Manual | 5. Production Requirements > 5.3 Product Change Notification Tag | PDF p. 23",
+         "id": "cs_e9302dd5-2d95-451c-9bd1-080403c20779",
+         "search_service_name": "supplier_documents",
+         "source_id": 2,
+         "text": "Supplier Quality Assurance Manual - 5. Production Requirements > 5.3 Product Change Notification Tag\n5.3 Product Change Notification Tag\nIn the event of a change requiring PPAP, it is the supplier\u2019s responsibility to identify the shipment of material with a PCN tag. Any material that is not approved production material shall be marked with an PCN tag or equivalent tag so that Worthington can identify the material when it is received.\nThe PCN tag shall be attached to containers in the first shipment of the changed material. Suppliers can use Worthington Enterprises PCN Tag (See Appendix C) or the IQS Documents module (Document ID:\nWE_Supplier_Quality_ManualATT1).\nPCN tags should be printed on 8-1/2\u201d x 11\u201d YELLOW sheets.\nAlternative size papers can be used based upon box size.\nInformation required on PCN tag\n\u2022 Date: Date of shipment\n\u2022 Part Name: as Shown on drawing\n\u2022 Part Number: Worthington Enterprises Part Number\n\u2022 Part Rev Level: Revision level of tagged material\n\u2022 Supplier Name: Name of Supplier\n\u2022 Description of change: Suppliers should include enough detail to clearly describe the change. The following is information that can be included to help describe the change.\n\u2022 PPAP ID\n\u2022 Supplier Nonconformance ID (NC)\n\u2022 Supplier Corrective Action ID (CAR)\n\u2022 Name of the Worthington Representative impacted by the change"
+        },
+        {
+         "doc_id": "WOR-SQAM-2025-10-23-7f6c970469ca",
+         "doc_title": "Supplier Quality Assurance Manual | 7. Supplier Performance Measurements > 7.4 Supplier Scorecard | PDF p. 30-31",
+         "id": "cs_32b349ea-3761-4963-be0a-2f502d8055c9",
+         "search_service_name": "supplier_documents",
+         "source_id": 3,
+         "text": "Supplier Quality Assurance Manual - 7. Supplier Performance Measurements > 7.4 Supplier Scorecard\n7.4 Supplier Scorecard\nWorthington maintains a scorecard of the quality, delivery, and partnership performance for each supplier that delivers material or processes for Worthington. The metrics on this scorecard are regularly reviewed to track supplier performance and identify negative trends. This information is available for supplier review on the Worthington Supplier Portal. It is recommended that suppliers review this information on a regular basis.\nRegular review of their performance data allows suppliers to take action to address issues and trends before Worthington is required to take action with the supplier.\nWorthington actions may include, but are not limited to:\n\u2022 Issuing CARs\n\u2022 Initiating process audits\n\u2022 Implementing 3rd party pre-shipment inspection / verification Information in the scorecard is routinely used in making sourcing decisions.\nQuality PPM Score:\nPPM Score is calculated based on the actual PPM compared against the PPM range (See Appendix D) in a quality PPM category (See Appendix D) , suppliers are assigned a PPM category based on industry segments. The ranges are developed from historical performance data for each industry segment. The ranges will remain set for a period of several years and be revaluated on a periodic basis. This re-evaluation is based on Worthington\u2019s focus on continuous improvement which flows through to the expectation of our suppliers.\nTo obtain the PPM, the quantity of parts/ weight of material defective (or rejected) is divided by the quantity of parts/ weight of material received and then multiplied by 1,000,000.\nThe quantity of parts/ weight of material (rejected) is defined as the quantity of material that cannot be immediately used upon receipt in production due to quality issues.\nOn Time Delivery Score:\nThe On-Time Delivery score is calculated:\n[formula not extracted - see source page]\n[formula not extracted - see source page]\nCAR Score:\nCorrective Action Request score is calculated:\n15 poin[formula not extracted - see source page]\n1Minumum score of 0 Quality Impact Score:\nQuality Impact Score is calculated:"
+        },
+        {
+         "doc_id": "WOR-SQAM-2025-10-23-b0f0c89cb83c",
+         "doc_title": "Supplier Quality Assurance Manual | 7. Supplier Performance Measurements > 7.3 Delivery | PDF p. 30",
+         "id": "cs_77c2b282-d766-4e40-93ec-454d6aaef1c4",
+         "search_service_name": "supplier_documents",
+         "source_id": 4,
+         "text": "Supplier Quality Assurance Manual - 7. Supplier Performance Measurements > 7.3 Delivery\n7.3 Delivery\nThe On-Time delivery of conforming material to Worthington is critical to allow us to operate efficiently and deliver on our commitments to our customers.\nWorthington defines On-Time Delivery as follows:\nAn \u201cOn-Time\u201d Delivery is defined as a delivery that is received on or before the agreed upon receipt date listed on the Purchase Order.\nRaw Material Mill:\nAn \u201cOn-Time\u201d Delivery is defined as a delivery that is received up to 5 days after the agreed upon receipt date listed on the Purchase Order.\nInternational Suppliers (Outside of North America):\nAn \u201cOn-Time\u201d Delivery is defined as a delivery that is received up to 10 days after the agreed upon receipt date listed on the Purchase Order."
+        }
+       ],
+       "search_results_persist": {}
+      },
+      "type": "json"
+     }
+    ],
+    "name": "supplier_documents",
+    "status": "success",
+    "tool_use_id": "toolu_bdrk_01VrzGVvgedvTcvb6JdsgrhT",
+    "type": "cortex_search"
+   },
+   "type": "tool_result"
+  },
+  {
+   "tool_result": {
+    "content": [
+     {
+      "json": {
+       "query_id": "01c8a8bd-010d-b184-0000-003554435269",
+       "result_set": {
+        "data": [
+         [
+          "0.60037523452157604",
+          "533",
+          "320",
+          "Africa",
+          "Central Africa"
+         ],
+         [
+          "0.5908319185059423",
+          "589",
+          "348",
+          "Africa",
+          "East Africa"
+         ],
+         [
+          "0.58828124999999998",
+          "1280",
+          "753",
+          "USCA",
+          "South of USA"
+         ],
+         [
+          "0.58501291989664084",
+          "1935",
+          "1132",
+          "Pacific Asia",
+          "West Asia"
+         ],
+         [
+          "0.58402175049670602",
+          "9563",
+          "5585",
+          "Europe",
+          "Western Europe"
+         ],
+         [
+          "0.5802568218298555",
+          "1246",
+          "723",
+          "Europe",
+          "Eastern Europe"
+         ],
+         [
+          "0.5801581595974119",
+          "4173",
+          "2421",
+          "Pacific Asia",
+          "Southeast Asia"
+         ],
+         [
+          "0.57937247592420005",
+          "3219",
+          "1865",
+          "Pacific Asia",
+          "South Asia"
+         ],
+         [
+          "0.57829373650107996",
+          "1852",
+          "1071",
+          "USCA",
+          "US Center"
+         ],
+         [
+          "0.57503379900856244",
+          "2219",
+          "1276",
+          "USCA",
+          "East of USA"
+         ],
+         [
+          "0.57332071901608328",
+          "3171",
+          "1818",
+          "Pacific Asia",
+          "Eastern Asia"
+         ],
+         [
+          "0.57282524163981785",
+          "9001",
+          "5156",
+          "LATAM",
+          "Central America"
+         ],
+         [
+          "0.57216088328075709",
+          "2536",
+          "1451",
+          "USCA",
+          "West of USA"
+         ],
+         [
+          "0.57058242843040474",
+          "1013",
+          "578",
+          "Africa",
+          "North Africa"
+         ],
+         [
+          "0.57053892215568858",
+          "4175",
+          "2382",
+          "Pacific Asia",
+          "Oceania"
+         ],
+         [
+          "0.56901646264246519",
+          "4738",
+          "2696",
+          "LATAM",
+          "South America"
+         ],
+         [
+          "0.56666666666666665",
+          "180",
+          "102",
+          "Pacific Asia",
+          "Central Asia"
+         ],
+         [
+          "0.56315789473684208",
+          "380",
+          "214",
+          "Africa",
+          "Southern Africa"
+         ],
+         [
+          "0.56004489337822672",
+          "3564",
+          "1996",
+          "Europe",
+          "Northern Europe"
+         ],
+         [
+          "0.55899705014749268",
+          "3390",
+          "1895",
+          "Europe",
+          "Southern Europe"
+         ],
+         [
+          "0.55588785046728972",
+          "2675",
+          "1487",
+          "LATAM",
+          "Caribbean"
+         ],
+         [
+          "0.53321976149914818",
+          "1174",
+          "626",
+          "Africa",
+          "West Africa"
+         ],
+         [
+          "0.52577319587628868",
+          "291",
+          "153",
+          "USCA",
+          "Canada"
+         ]
+        ],
+        "resultSetMetaData": {
+         "format": "jsonv2",
+         "numRows": 23,
+         "partition": 0,
+         "partitionInfo": [
+          {
+           "rowCount": 23,
+           "uncompressedSize": 1459
+          }
+         ],
+         "rowType": [
+          {
+           "length": 0,
+           "name": "LATE_DELIVERY_RATE",
+           "nullable": true,
+           "precision": 0,
+           "scale": 0,
+           "type": "real"
+          },
+          {
+           "length": 0,
+           "name": "ELIGIBLE_SHIPMENTS",
+           "nullable": true,
+           "precision": 13,
+           "scale": 0,
+           "type": "fixed"
+          },
+          {
+           "length": 0,
+           "name": "LATE_SHIPMENTS",
+           "nullable": true,
+           "precision": 13,
+           "scale": 0,
+           "type": "fixed"
+          },
+          {
+           "length": 16777216,
+           "name": "MARKET",
+           "nullable": true,
+           "precision": 0,
+           "scale": 0,
+           "type": "text"
+          },
+          {
+           "length": 16777216,
+           "name": "ORDER_REGION",
+           "nullable": true,
+           "precision": 0,
+           "scale": 0,
+           "type": "text"
+          }
+         ]
+        },
+        "statementHandle": "01c8a8bd-010d-b184-0000-003554435269"
+       },
+       "semantic_model_path": "SCC_DB.AI.SUPPLY_CHAIN_DELIVERY_SV",
+       "sql": "SELECT * FROM SEMANTIC_VIEW(scc_db.ai.supply_chain_delivery_sv METRICS orders.late_delivery_rate, orders.eligible_shipments, orders.late_shipments DIMENSIONS regions.market, regions.order_region) ORDER BY late_delivery_rate DESC NULLS LAST\n-- Generated by Cortex\n;",
+       "verified_query_used": true
+      },
+      "type": "json"
+     }
+    ],
+    "name": "system_execute_sql",
+    "status": "success",
+    "tool_use_id": "toolu_bdrk_01X2qmkYAZ3LxAYw7eFpv83M",
+    "type": "system_execute_sql"
+   },
+   "type": "tool_result"
+  },
+  {
+   "text": "In the DataCo public sample dataset (retail and e-commerce orders from 2015 to 2018, not Worthington data), the regions with the highest late-delivery rates are Central Africa at 60.0% (320 of 533 shipments), East Africa at 59.1% (348 of 589) and South of USA at 58.8% (753 of 1,280). Late-delivery rate means late shipments divided by eligible shipments, with canceled shipments left out. Next come West Asia at 58.5% (1,132 of 1,935) and Western Europe at 58.4% (5,585 of 9,563). Rates are similar everywhere: all 23 regions fall between 52.6% (Canada, 153 of 291) and 60.0%. The two highest are also among the smallest regions by shipment count.\n\n",
+   "type": "text"
+  },
+  {
+   "table": {
+    "query_id": "01c8a8bd-010d-b184-0000-003554435269",
+    "result_set": {
+     "data": [
+      [
+       "0.60037523452157604",
+       "533",
+       "320",
+       "Africa",
+       "Central Africa"
+      ],
+      [
+       "0.5908319185059423",
+       "589",
+       "348",
+       "Africa",
+       "East Africa"
+      ],
+      [
+       "0.58828124999999998",
+       "1280",
+       "753",
+       "USCA",
+       "South of USA"
+      ],
+      [
+       "0.58501291989664084",
+       "1935",
+       "1132",
+       "Pacific Asia",
+       "West Asia"
+      ],
+      [
+       "0.58402175049670602",
+       "9563",
+       "5585",
+       "Europe",
+       "Western Europe"
+      ],
+      [
+       "0.5802568218298555",
+       "1246",
+       "723",
+       "Europe",
+       "Eastern Europe"
+      ],
+      [
+       "0.5801581595974119",
+       "4173",
+       "2421",
+       "Pacific Asia",
+       "Southeast Asia"
+      ],
+      [
+       "0.57937247592420005",
+       "3219",
+       "1865",
+       "Pacific Asia",
+       "South Asia"
+      ],
+      [
+       "0.57829373650107996",
+       "1852",
+       "1071",
+       "USCA",
+       "US Center"
+      ],
+      [
+       "0.57503379900856244",
+       "2219",
+       "1276",
+       "USCA",
+       "East of USA"
+      ],
+      [
+       "0.57332071901608328",
+       "3171",
+       "1818",
+       "Pacific Asia",
+       "Eastern Asia"
+      ],
+      [
+       "0.57282524163981785",
+       "9001",
+       "5156",
+       "LATAM",
+       "Central America"
+      ],
+      [
+       "0.57216088328075709",
+       "2536",
+       "1451",
+       "USCA",
+       "West of USA"
+      ],
+      [
+       "0.57058242843040474",
+       "1013",
+       "578",
+       "Africa",
+       "North Africa"
+      ],
+      [
+       "0.57053892215568858",
+       "4175",
+       "2382",
+       "Pacific Asia",
+       "Oceania"
+      ],
+      [
+       "0.56901646264246519",
+       "4738",
+       "2696",
+       "LATAM",
+       "South America"
+      ],
+      [
+       "0.56666666666666665",
+       "180",
+       "102",
+       "Pacific Asia",
+       "Central Asia"
+      ],
+      [
+       "0.56315789473684208",
+       "380",
+       "214",
+       "Africa",
+       "Southern Africa"
+      ],
+      [
+       "0.56004489337822672",
+       "3564",
+       "1996",
+       "Europe",
+       "Northern Europe"
+      ],
+      [
+       "0.55899705014749268",
+       "3390",
+       "1895",
+       "Europe",
+       "Southern Europe"
+      ],
+      [
+       "0.55588785046728972",
+       "2675",
+       "1487",
+       "LATAM",
+       "Caribbean"
+      ],
+      [
+       "0.53321976149914818",
+       "1174",
+       "626",
+       "Africa",
+       "West Africa"
+      ],
+      [
+       "0.52577319587628868",
+       "291",
+       "153",
+       "USCA",
+       "Canada"
+      ]
+     ],
+     "resultSetMetaData": {
+      "format": "jsonv2",
+      "numRows": 23,
+      "partition": 0,
+      "rowType": [
+       {
+        "length": 0,
+        "name": "LATE_DELIVERY_RATE",
+        "nullable": true,
+        "precision": 0,
+        "scale": 0,
+        "type": "real"
+       },
+       {
+        "length": 0,
+        "name": "ELIGIBLE_SHIPMENTS",
+        "nullable": true,
+        "precision": 13,
+        "scale": 0,
+        "type": "fixed"
+       },
+       {
+        "length": 0,
+        "name": "LATE_SHIPMENTS",
+        "nullable": true,
+        "precision": 13,
+        "scale": 0,
+        "type": "fixed"
+       },
+       {
+        "length": 16777216,
+        "name": "MARKET",
+        "nullable": true,
+        "precision": 0,
+        "scale": 0,
+        "type": "text"
+       },
+       {
+        "length": 16777216,
+        "name": "ORDER_REGION",
+        "nullable": true,
+        "precision": 0,
+        "scale": 0,
+        "type": "text"
+       }
+      ]
+     },
+     "statementHandle": "01c8a8bd-010d-b184-0000-003554435269"
+    },
+    "title": "Late-delivery rate by destination region (DataCo sample)",
+    "tool_use_id": "toolu_bdrk_01X2qmkYAZ3LxAYw7eFpv83M"
+   },
+   "type": "table"
+  },
+  {
+   "annotations": [
+    {
+     "doc_id": "WOR-SQAM-2025-10-23-9df67976c830",
+     "doc_title": "Supplier Quality Assurance Manual | 7. Supplier Performance Measurements > 7.1 Non-Conforming Material | PDF p. 27-29",
+     "index": 643,
+     "search_result_id": "cs_9f435703-dd90-4fd7-bd12-9b7abf2cb997",
+     "text": "Supplier Quality Assurance Manual - 7. Supplier Performance Measurements > 7.1 Non-Conforming Material\n7. SUPPLIER PERFORMANCE MEASUREMENTS\n7.1 Non-Conforming Material\nIt is in the interest of both Worthington and the supplier, to identify and address non-conforming material as quickly as possible. Every effort is taken to investigate and document nonconformances and to notify the supplier immediately.\nSuppliers are expected to respond to any non-conformance and ensure that all receiving plants are protected within 48 hours. Suppliers are required to notify Worthington immediately if it is identified that non-conforming material has been shipped to Worthington.\nAll costs (sorting, handling, shipping, and rework costs) associated with addressing a non-conformance shall be the supplier\u2019s responsibility.\nIf the material is not used by Worthington under deviation, after rework or after repair, non-conforming material will be \u201creturned to supplier\u201d or \u201cscrapped at Worthington\u201d based on supplier\u2019s direction.\nIn the event non-conforming parts or material have been identified at Worthington, suppliers will be notified via the Worthington Supplier Portal and should acknowledge the Non-conformance in the system within 48 hours Supplier should disposition material as \u201cReturn to Vendor\u201d or \u201cScrap at Worthington\u201d in the Worthington Supplier Portal. If not dispositioned by the supplier, Worthington will default to returning the material to the supplier at the cost of the supplier.\nNon-Conformance Ranking Definitions for the Non-conformance ranking are as follows:\nMajor NC:\n\u2022 Significant reduction in production efficiency\n\u2022 Production down time > 15 minutes\n\u2022 Impact to production schedule\n\u2022 Impact to our Customer *If the supplier notifies Worthington of non-conforming material prior to shipment, material will not be considered a major NC.\nMinor NC:\n\u2022 Minor reduction in production efficiency\n\u2022 Production down time < 15 minutes OFI:\n\u2022 Little to no reduction in production efficiency",
+     "type": "cortex_search_citation"
+    },
+    {
+     "doc_id": "WOR-SQAM-2025-10-23-9df67976c830",
+     "doc_title": "Supplier Quality Assurance Manual | 7. Supplier Performance Measurements > 7.1 Non-Conforming Material | PDF p. 27-29",
+     "index": 1011,
+     "search_result_id": "cs_9f435703-dd90-4fd7-bd12-9b7abf2cb997",
+     "text": "Supplier Quality Assurance Manual - 7. Supplier Performance Measurements > 7.1 Non-Conforming Material\n7. SUPPLIER PERFORMANCE MEASUREMENTS\n7.1 Non-Conforming Material\nIt is in the interest of both Worthington and the supplier, to identify and address non-conforming material as quickly as possible. Every effort is taken to investigate and document nonconformances and to notify the supplier immediately.\nSuppliers are expected to respond to any non-conformance and ensure that all receiving plants are protected within 48 hours. Suppliers are required to notify Worthington immediately if it is identified that non-conforming material has been shipped to Worthington.\nAll costs (sorting, handling, shipping, and rework costs) associated with addressing a non-conformance shall be the supplier\u2019s responsibility.\nIf the material is not used by Worthington under deviation, after rework or after repair, non-conforming material will be \u201creturned to supplier\u201d or \u201cscrapped at Worthington\u201d based on supplier\u2019s direction.\nIn the event non-conforming parts or material have been identified at Worthington, suppliers will be notified via the Worthington Supplier Portal and should acknowledge the Non-conformance in the system within 48 hours Supplier should disposition material as \u201cReturn to Vendor\u201d or \u201cScrap at Worthington\u201d in the Worthington Supplier Portal. If not dispositioned by the supplier, Worthington will default to returning the material to the supplier at the cost of the supplier.\nNon-Conformance Ranking Definitions for the Non-conformance ranking are as follows:\nMajor NC:\n\u2022 Significant reduction in production efficiency\n\u2022 Production down time > 15 minutes\n\u2022 Impact to production schedule\n\u2022 Impact to our Customer *If the supplier notifies Worthington of non-conforming material prior to shipment, material will not be considered a major NC.\nMinor NC:\n\u2022 Minor reduction in production efficiency\n\u2022 Production down time < 15 minutes OFI:\n\u2022 Little to no reduction in production efficiency",
+     "type": "cortex_search_citation"
+    },
+    {
+     "doc_id": "WOR-SQAM-2025-10-23-9df67976c830",
+     "doc_title": "Supplier Quality Assurance Manual | 7. Supplier Performance Measurements > 7.1 Non-Conforming Material | PDF p. 27-29",
+     "index": 1247,
+     "search_result_id": "cs_9f435703-dd90-4fd7-bd12-9b7abf2cb997",
+     "text": "Supplier Quality Assurance Manual - 7. Supplier Performance Measurements > 7.1 Non-Conforming Material\n7. SUPPLIER PERFORMANCE MEASUREMENTS\n7.1 Non-Conforming Material\nIt is in the interest of both Worthington and the supplier, to identify and address non-conforming material as quickly as possible. Every effort is taken to investigate and document nonconformances and to notify the supplier immediately.\nSuppliers are expected to respond to any non-conformance and ensure that all receiving plants are protected within 48 hours. Suppliers are required to notify Worthington immediately if it is identified that non-conforming material has been shipped to Worthington.\nAll costs (sorting, handling, shipping, and rework costs) associated with addressing a non-conformance shall be the supplier\u2019s responsibility.\nIf the material is not used by Worthington under deviation, after rework or after repair, non-conforming material will be \u201creturned to supplier\u201d or \u201cscrapped at Worthington\u201d based on supplier\u2019s direction.\nIn the event non-conforming parts or material have been identified at Worthington, suppliers will be notified via the Worthington Supplier Portal and should acknowledge the Non-conformance in the system within 48 hours Supplier should disposition material as \u201cReturn to Vendor\u201d or \u201cScrap at Worthington\u201d in the Worthington Supplier Portal. If not dispositioned by the supplier, Worthington will default to returning the material to the supplier at the cost of the supplier.\nNon-Conformance Ranking Definitions for the Non-conformance ranking are as follows:\nMajor NC:\n\u2022 Significant reduction in production efficiency\n\u2022 Production down time > 15 minutes\n\u2022 Impact to production schedule\n\u2022 Impact to our Customer *If the supplier notifies Worthington of non-conforming material prior to shipment, material will not be considered a major NC.\nMinor NC:\n\u2022 Minor reduction in production efficiency\n\u2022 Production down time < 15 minutes OFI:\n\u2022 Little to no reduction in production efficiency",
+     "type": "cortex_search_citation"
+    },
+    {
+     "doc_id": "WOR-SQAM-2025-10-23-a96e957153dd",
+     "doc_title": "Supplier Quality Assurance Manual | 7. Supplier Performance Measurements > 7.2 Corrective Action Responses | PDF p. 29",
+     "index": 1450,
+     "search_result_id": "cs_58b5e1f0-0212-41a9-bd55-b47788e9c5a7",
+     "text": "Supplier Quality Assurance Manual - 7. Supplier Performance Measurements > 7.2 Corrective Action Responses\n7.2 Corrective Action Responses\nThe following are time frames for response to non-conformances:\n[Table]\nContainment Completed: 2 working days1; Corrective and Preventative Actions Completed: 14 working days2; Effectiveness Verified: 30 working days\nNote: 1) On receipt of the quality complaint or due to a mutually agreed timeframe 2) After arrival of the Products at Supplier test facility if return is necessary.\nIn addition to correction of the documented problem, suppliers are encouraged to apply the lessons learned to all similar products or processes.",
+     "type": "cortex_search_citation"
+    },
+    {
+     "doc_id": "WOR-SQAM-2025-10-23-7f6c970469ca",
+     "doc_title": "Supplier Quality Assurance Manual | 7. Supplier Performance Measurements > 7.4 Supplier Scorecard | PDF p. 30-31",
+     "index": 1787,
+     "search_result_id": "cs_32b349ea-3761-4963-be0a-2f502d8055c9",
+     "text": "Supplier Quality Assurance Manual - 7. Supplier Performance Measurements > 7.4 Supplier Scorecard\n7.4 Supplier Scorecard\nWorthington maintains a scorecard of the quality, delivery, and partnership performance for each supplier that delivers material or processes for Worthington. The metrics on this scorecard are regularly reviewed to track supplier performance and identify negative trends. This information is available for supplier review on the Worthington Supplier Portal. It is recommended that suppliers review this information on a regular basis.\nRegular review of their performance data allows suppliers to take action to address issues and trends before Worthington is required to take action with the supplier.\nWorthington actions may include, but are not limited to:\n\u2022 Issuing CARs\n\u2022 Initiating process audits\n\u2022 Implementing 3rd party pre-shipment inspection / verification Information in the scorecard is routinely used in making sourcing decisions.\nQuality PPM Score:\nPPM Score is calculated based on the actual PPM compared against the PPM range (See Appendix D) in a quality PPM category (See Appendix D) , suppliers are assigned a PPM category based on industry segments. The ranges are developed from historical performance data for each industry segment. The ranges will remain set for a period of several years and be revaluated on a periodic basis. This re-evaluation is based on Worthington\u2019s focus on continuous improvement which flows through to the expectation of our suppliers.\nTo obtain the PPM, the quantity of parts/ weight of material defective (or rejected) is divided by the quantity of parts/ weight of material received and then multiplied by 1,000,000.\nThe quantity of parts/ weight of material (rejected) is defined as the quantity of material that cannot be immediately used upon receipt in production due to quality issues.\nOn Time Delivery Score:\nThe On-Time Delivery score is calculated:\n[formula not extracted - see source page]\n[formula not extracted - see source page]\nCAR Score:\nCorrective Action Request score is calculated:\n15 poin[formula not extracted - see source page]\n1Minumum score of 0 Quality Impact Score:\nQuality Impact Score is calculated:",
+     "type": "cortex_search_citation"
+    },
+    {
+     "doc_id": "WOR-SQAM-2025-10-23-b0f0c89cb83c",
+     "doc_title": "Supplier Quality Assurance Manual | 7. Supplier Performance Measurements > 7.3 Delivery | PDF p. 30",
+     "index": 2028,
+     "search_result_id": "cs_77c2b282-d766-4e40-93ec-454d6aaef1c4",
+     "text": "Supplier Quality Assurance Manual - 7. Supplier Performance Measurements > 7.3 Delivery\n7.3 Delivery\nThe On-Time delivery of conforming material to Worthington is critical to allow us to operate efficiently and deliver on our commitments to our customers.\nWorthington defines On-Time Delivery as follows:\nAn \u201cOn-Time\u201d Delivery is defined as a delivery that is received on or before the agreed upon receipt date listed on the Purchase Order.\nRaw Material Mill:\nAn \u201cOn-Time\u201d Delivery is defined as a delivery that is received up to 5 days after the agreed upon receipt date listed on the Purchase Order.\nInternational Suppliers (Outside of North America):\nAn \u201cOn-Time\u201d Delivery is defined as a delivery that is received up to 10 days after the agreed upon receipt date listed on the Purchase Order.",
+     "type": "cortex_search_citation"
+    }
+   ],
+   "text": "\n\nThe sample data only records whether each shipment was late. It can't show that late deliveries come from supplier quality problems or any other cause. The procedures below would apply only if a quality issue were confirmed separately.\n\n**Supplier-quality procedures (Worthington's public documents, Supplier Quality Assurance Manual)**\n- **Notice and 48-hour response (\u00a77.1, p. 27\u201329):**\n  - Worthington notifies the supplier immediately.\n  - The supplier must respond and make sure every receiving plant is protected within 48 hours.\n  - The supplier must tell Worthington immediately if it learns that non-conforming material was shipped.\n- **Supplier Portal steps and costs (\u00a77.1, p. 27\u201329):**\n  - The supplier acknowledges the non-conformance in the Worthington Supplier Portal within 48 hours.\n  - It then chooses \"Return to Vendor\" or \"Scrap at Worthington.\" If it doesn't choose, the material is sent back at the supplier's cost.\n  - The supplier pays all sorting, handling, shipping and rework costs.\n- **Severity levels (\u00a77.1, p. 27\u201329):** A non-conformance is \"Major\" if, for example, it causes more than 15 minutes of production downtime or affects the production schedule or customers. It is \"Minor\" if downtime is under 15 minutes.\n- **Corrective-action deadlines (\u00a77.2, p. 29):** Containment within 2 working days, corrective and preventive actions within 14 working days, and verification that the fix worked within 30 working days.\n- **Supplier scorecard (\u00a77.4, p. 30\u201331):**\n  - Worthington tracks each supplier's quality, delivery and partnership performance on a scorecard.\n  - If problems continue, it may issue corrective action requests, start process audits or require third-party inspection before shipment.\n  - Scorecard results are used in sourcing decisions.\n\nThe manual defines \"on time\" differently from the sample data. A delivery counts as on time if it arrives by the purchase-order date. Raw-material mills get up to 5 extra days and suppliers outside North America get up to 10 (\u00a77.3, p. 30). Neither source has supplier-level performance data.",
+   "type": "text"
+  },
+  {
+   "suggested_queries": [
+    {
+     "query": "How does the late-delivery rate in Central Africa, East Africa and South of USA break down by shipping mode?"
+    },
+    {
+     "query": "Which regions have the highest average days late, and how many late shipments sit behind each?"
+    },
+    {
+     "query": "What do Worthington's public documents say about PPAP requirements and supplier production changes?"
+    }
+   ],
+   "type": "suggested_queries"
+  }
+ ],
+ "metadata": {
+  "created_on": 1795656829014,
+  "orchestration_model": "claude-opus-5-5",
+  "thinking_effort": "low",
+  "usage": {
+   "limits": [
+    {
+     "limit": 20,
+     "name": "trial_account_estimated_credits",
+     "usage": 0.22786378999999998
+    }
+   ],
+   "tokens_consumed": [
+    {
+     "context_window": 1000000,
+     "input_tokens": {
+      "cache_read": 67649,
+      "cache_write": 39791,
+      "total": 107450,
+      "uncached": 10
+     },
+     "model_name": "claude-opus-5-5",
+     "model_role": "orchestration",
+     "output_tokens": {
+      "total": 1897
+     }
+    }
+   ]
+  }
+ },
+ "role": "assistant",
+ "schema_version": "v2",
+ "sequence_number": 218,
+ "status": "completed"
+}

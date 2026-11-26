@@ -49,6 +49,20 @@ def session(
         conn.close()
 
 
+@contextmanager
+def app_session() -> Iterator[SnowflakeConnection]:
+    """Runtime-user session (SCC_APP_SVC / SCC_APP_ROLE) with secondary roles explicitly disabled,
+    so only the read-only role's privileges apply (defense in depth on top of the user's defaults)."""
+    from supplychain_copilot.config import load_app_settings
+
+    conn = connect(load_app_settings())
+    try:
+        conn.cursor().execute("USE SECONDARY ROLES NONE")
+        yield conn
+    finally:
+        conn.close()
+
+
 def query(conn: SnowflakeConnection, sql: str, params: Any = None) -> list[dict[str, Any]]:
     """Run a query and return rows as dicts keyed by upper-cased column name."""
     with conn.cursor(snowflake.connector.DictCursor) as cur:

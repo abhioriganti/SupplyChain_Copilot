@@ -50,6 +50,39 @@ class SnowflakeSettings:
         )
 
 
+def load_app_settings(env_file: Path | None = None) -> SnowflakeSettings:
+    """Runtime (app/agent) credentials: the dedicated SCC_APP_SVC user holding only SCC_APP_ROLE.
+
+    Deliberately does NOT fall back to the developer credentials: if the app user isn't configured,
+    the app must fail closed rather than run with a user that can reach SCC_DEV_ROLE."""
+    base = load_settings(env_file)
+    user = os.getenv("SNOWFLAKE_APP_USER", "").strip()
+    key = os.getenv("SNOWFLAKE_APP_PRIVATE_KEY_PATH", "").strip()
+    if not user or not key:
+        raise ConfigError(
+            "App runtime user not configured: set SNOWFLAKE_APP_USER and SNOWFLAKE_APP_PRIVATE_KEY_PATH "
+            "(see sql/70_agent/00c_app_service_user.sql)."
+        )
+    if not _IDENTIFIER.match(user):
+        raise ConfigError("SNOWFLAKE_APP_USER must be a plain Snowflake identifier.")
+    key_path = Path(key).expanduser().resolve()
+    if not key_path.is_file():
+        raise ConfigError(
+            f"App private key not found at SNOWFLAKE_APP_PRIVATE_KEY_PATH ({key_path})."
+        )
+    if key_path.is_relative_to(PROJECT_ROOT):
+        raise ConfigError("The app private key must live outside the project folder.")
+    return SnowflakeSettings(
+        account=base.account,
+        user=user.upper(),
+        role=os.getenv("SNOWFLAKE_APP_ROLE", "SCC_APP_ROLE").strip().upper(),
+        warehouse=base.warehouse,
+        database=base.database,
+        private_key_path=key_path,
+        private_key_passphrase=os.getenv("SNOWFLAKE_APP_PRIVATE_KEY_PASSPHRASE") or None,
+    )
+
+
 def load_settings(env_file: Path | None = None) -> SnowflakeSettings:
     """Load Snowflake settings from environment variables (optionally a local .env file)."""
     load_dotenv(env_file or PROJECT_ROOT / ".env", override=False)

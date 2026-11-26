@@ -58,7 +58,9 @@ def main() -> int:
 
     print(f"Private key written to: {out}")
     print("Keep it private. Put this path in .env as SNOWFLAKE_PRIVATE_KEY_PATH.\n")
-    print("PUBLIC key (paste into sql/00_setup/01_account_setup.sql where it says <PUBLIC_KEY>):\n")
+    print(
+        "PUBLIC key (paste into the setup SQL in Snowsight where it says <PUBLIC_KEY> / <APP_PUBLIC_KEY>):\n"
+    )
     print(public_key_body(key))
     print(
         f"\nFingerprint (compare with DESC USER SCC_SVC -> RSA_PUBLIC_KEY_FP): {public_key_fingerprint(key)}"
