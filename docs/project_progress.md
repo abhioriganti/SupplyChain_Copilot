@@ -1,6 +1,40 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 3, Snowflake semantic view · **Status:** ✅ **Phase 3 complete** (2026-11-25). Next is Phase 4.
+**Interview:** 2026-12-08 · **Current phase:** 4, Document ingestion and RAG preprocessing · **Status:** ✅ **Phase 4 complete** (2026-11-26). Next is Phase 5.
+
+## Phase 4: document ingestion and RAG preprocessing (2026-11-26)
+
+### Build order
+```powershell
+.venv\Scripts\python -m supplychain_copilot.ingestion.download_data      # verify PDF hashes and URLs
+.venv\Scripts\python -m supplychain_copilot.documents.pipeline           # extract + chunk -> parquet
+.venv\Scripts\python -m supplychain_copilot.documents.quality            # docs/document_extraction_report.md
+.venv\Scripts\python scripts\run_sql_file.py sql\50_documents\01_document_tables.sql
+.venv\Scripts\python -m supplychain_copilot.documents.load               # transactional replace + verify
+.venv\Scripts\python scripts\run_sql_tests.py sql\tests\test_phase4_documents.sql
+```
+
+### Completed and verified
+| Item | Evidence |
+|---|---|
+| Sources and metadata | 3 PDFs. The SHA-256 and URL of each are verified against `data/manifest.json` before parsing. Version and publication date are recorded **with evidence**: SQAM revision record 10/23/25; SCOC cover "June 2025"; 10-K "fiscal year ended May 31, 2026". |
+| Extraction | PyMuPDF 1.28.2. Column-aware order, table filtering and serialisation, heading detection, boilerplate and page-number removal, printed page labels, formula marker, ligature normalisation, overlay de-duplication. |
+| Scope | 92 of 175 pages used. Excluded pages are logged with reasons (covers, TOC, 10-K financial statements and boilerplate). |
+| Chunks | **152 chunks**: SQAM 31, SCOC 10, AR 111. Estimated tokens 10–595, median 175 / 153 / 324. 0 over 600. Overlap on 28 split points only. |
+| Manual inspection | Corrective-action table (SQAM p.29: 2 / 14 / 30 working days), scorecard weights (p.32), SCOC responsible supply chain (p.10), 10-K raw-material and customer/supplier risk factors (PDF p.28 = printed p.8). Full text is in the quality report. |
+| Provenance | **152 of 152 chunks** have every word on their cited PDF pages (pytest-asserted). Median order fidelity 1.00; 3 layout-heavy chunks below 0.9 are listed for review. |
+| Snowflake | `DOCS.DOCUMENTS` (3 rows), `DOCS.DOCUMENT_CHUNKS` (152 rows, `CHANGE_TRACKING = TRUE`). Transactional replace. Re-run gave identical chunk IDs and 0 mismatches against the Parquet. |
+| SQL tests | `test_phase4_documents.sql`: **13 of 13 pass**, including `CONTENT_HASH = SHA2(CHUNK_TEXT)` recomputed in Snowflake |
+| pytest | `tests/test_documents.py`: 16 passed (12 unit, 4 on the real PDFs) plus 1 live test |
+
+### Limitations (documented in the quality report)
+- 2 image-only pages (SQAM p.16 diagram, p.39 PCN tag form): **not extracted, no OCR**.
+- MD&A financial tables are flattened. 2 nested-header tables are kept raw and marked low-confidence.
+- Footnote superscripts are attached to values ("2 working days1"). The footnote text is kept as a Note.
+- Heuristics are tuned to these layouts; new documents need review against the quality report.
+
+### Files (Phase 4)
+`src/supplychain_copilot/documents/{__init__,registry,extract,chunking,pipeline,quality,load}.py`, `sql/50_documents/01_document_tables.sql`, `sql/tests/test_phase4_documents.sql`, `tests/test_documents.py`, `docs/document_extraction_report.md` (generated), ADR-018, `pyproject.toml` (+pymupdf), `requirements.lock`
 
 ## Phase 3: native semantic view and Cortex Analyst (2026-11-25)
 

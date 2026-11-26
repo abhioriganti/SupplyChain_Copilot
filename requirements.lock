@@ -33,6 +33,7 @@ pycparser==3.12
 pydeck==0.9.3
 Pygments==2.21.0
 PyJWT==2.15.1
+pymupdf==1.28.2
 pyOpenSSL==26.4.0
 pytest==8.4.2
 python-dateutil==2.9.0.post0

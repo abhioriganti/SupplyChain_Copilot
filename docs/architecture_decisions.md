@@ -129,6 +129,50 @@ It changes neither row count nor values. Eligibility, late rate, revenue choice 
 
 **Finding:** "late rate by category" is a many-to-many path (orders↔lines↔products). Snowflake deduplicates per category rather than erroring. Tested equal to `COUNT(DISTINCT)` in 51 of 51 categories, whereas a naive join inflates 29. The result is correct but non-additive, which is documented and stated in the Analyst instructions.
 
+## ADR-018: Document processing: layout-aware PyMuPDF, scoped pages, provenance-first chunks
+**Status:** Accepted (2026-11-26)
+**Context:** Three structurally different PDFs:
+- two PowerPoint exports, with two-column slides, divider slides, running headers and bare slide numbers
+- one InDesign annual report plus 10-K, with no bookmarks, roman then arabic page labels, and infographics
+
+**Decisions:**
+1. **Reading order:** column-aware ordering (by block centre) only on pages detected as multi-column. Single-column pages keep top-down order. This fixes scrambled order on two-column slides.
+2. **Tables:** `find_tables()` plus filters. A full-page slide frame, a sparse detection or prose-like single-cell rows is rejected (72 rejected, 6 kept). Kept tables are serialised as `header: value` rows, with merged two-row headers combined and footnote rows emitted as notes. Ambiguous nested headers are **not guessed**: raw rows are kept with a "verify against source page" marker.
+3. **Headings:**
+   - slides: size and position (divider = very large or "N. Title"; page title = large text at the top) plus numbered subsections (`7.2 …`)
+   - report: `Item N.` headings plus bold body-size lines at the left text margin
+   - letter-spaced titles are rebuilt from character gaps
+4. **Cleaning:**
+   - bullets joined to their text
+   - wrapped lines reflowed
+   - line-end hyphens kept with the break removed
+   - NFKC ligature normalisation, **except** math glyphs, which become an explicit `[formula not extracted]` marker
+   - duplicate overlay text removed
+5. **Scope:** cover and TOC pages, plus the 10-K financial statements, stock data and governance boilerplate, are excluded **with logged reasons**. Numeric financial statements belong in structured data, not text retrieval.
+6. **Chunking:**
+   - heading-aware, never crossing a heading1 or an excluded-page gap
+   - 350–600 estimated tokens
+   - one-sentence overlap only where a long section is split
+   - heading-only sections dropped
+   - tables split by rows only if oversized
+7. **Identity and provenance:**
+   - `CHUNK_ID` = hash of document, page, section and text, so it's deterministic (identical across re-runs)
+   - `CONTENT_HASH` = SHA-256 of the text, re-verified inside Snowflake
+   - PDF page and printed page label both stored
+   - source file hash checked against the manifest before parsing
+
+**Validation:**
+- **Word-level provenance:** every word of every chunk is on its cited pages (152 of 152, asserted).
+- **Order fidelity:** reported per chunk.
+- 13 SQL tests on the loaded tables.
+
+**Alternatives:**
+- `AI_PARSE_DOCUMENT` (managed, but costs credits and is less inspectable)
+- `pymupdf_layout` or ML layout models (extra dependency)
+- fixed-size chunking (breaks the section and citation semantics)
+
+**Tradeoffs:** Heuristics are tuned to these three documents, so new layouts need a review against the quality report. There's no OCR for image-only content (2 pages flagged).
+
 ## ADR-013: Parse failures abort; source quirks are flagged
 **Status:** Accepted
 **Decision:**
