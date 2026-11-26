@@ -351,13 +351,10 @@ live = pytest.mark.skipif(
 
 @pytest.mark.snowflake
 @live
-def test_live_missing_agent_returns_fallback(monkeypatch):
-    import supplychain_copilot.agent.client as client_mod
-
-    monkeypatch.setattr(
-        client_mod, "AGENT_PATH", "/api/v2/databases/SCC_DB/schemas/AI/agents/DOES_NOT_EXIST:run"
-    )
-    a = CopilotAgent(backoff_s=0).ask("hello")
+def test_live_missing_agent_returns_fallback():
+    a = CopilotAgent(
+        backoff_s=0, agent_path="/api/v2/databases/SCC_DB/schemas/AI/agents/DOES_NOT_EXIST:run"
+    ).ask("hello")
     assert not a.ok and a.error and "HTTP" in a.error
 
 

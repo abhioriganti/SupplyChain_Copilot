@@ -134,4 +134,5 @@ These come from one query over the log. The run-3 row in the monitoring table ab
   - The questions and labels were written by the developer.
   - Runs are single samples of a non-deterministic model; wording varies between runs, and a case can pass one run and fail another.
   - Fact checks match required phrases, so a correct answer worded unusually can fail (S7 in run 1). The flags are reviewed by a human for that reason.
-- **Not tested:** adversarial instructions planted *inside indexed documents* (the corpus is public and pinned); load or concurrency; multi-turn conversation drift.
+- **Not tested here:** load or concurrency, and multi-turn conversation drift.
+- Instructions planted *inside indexed documents* are now covered by a separate red-team (`docs/redteam_findings.md`: 6 of 6 resisted).

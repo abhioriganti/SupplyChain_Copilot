@@ -271,6 +271,7 @@ class CopilotAgent:
         timeout_s: float = 180.0,
         max_retries: int = 2,
         backoff_s: float = 2.0,
+        agent_path: str = AGENT_PATH,
     ):
         """Defaults to the dedicated runtime user (SCC_APP_SVC, role SCC_APP_ROLE). Fails closed with
         ConfigError if that user isn't configured, rather than using developer credentials."""
@@ -280,6 +281,9 @@ class CopilotAgent:
                 raise ValueError(f"The agent must run as {RUNTIME_ROLE}, not {settings.role}.")
             client = SnowflakeRestClient(settings, timeout=timeout_s)
         self._client = client
+        self._path = (
+            agent_path  # the red-team sandbox agent uses a different path (evaluation.redteam)
+        )
         self._max_retries = max_retries
         self._backoff_s = backoff_s
 
@@ -294,7 +298,7 @@ class CopilotAgent:
         start = time.perf_counter()
         for attempt in range(self._max_retries + 1):
             try:
-                resp = self._client.post(AGENT_PATH, {"messages": messages, "stream": False})
+                resp = self._client.post(self._path, {"messages": messages, "stream": False})
             except SnowflakeRestError as exc:
                 elapsed = time.perf_counter() - start
                 if exc.status in RETRYABLE_STATUS and attempt < self._max_retries:
@@ -342,7 +346,7 @@ class CopilotAgent:
             received_any = False
             try:
                 for event, data in self._client.post_stream(
-                    AGENT_PATH, {"messages": messages, "stream": True}
+                    self._path, {"messages": messages, "stream": True}
                 ):
                     received_any = True
                     data = data if isinstance(data, dict) else {}

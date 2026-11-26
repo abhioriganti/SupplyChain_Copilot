@@ -53,6 +53,7 @@ ignore = [
 "scripts/*" = ["S608"]  # identifiers come from validated config, not user input
 "src/supplychain_copilot/semantic/validate_view.py" = ["S608"]  # SQL built only from module constants
 "src/supplychain_copilot/documents/load.py" = ["S608"]  # SQL built only from module constants
+"src/supplychain_copilot/evaluation/redteam.py" = ["S608"]  # constant identifiers; attack text is bound
 "src/supplychain_copilot/ui/data.py" = ["S608"]  # constants + bound placeholders only
 "src/supplychain_copilot/ui/feedback.py" = ["S608"]  # constant column list + bound values
 "src/supplychain_copilot/observability.py" = ["S608"]  # constant column list + bound values

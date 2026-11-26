@@ -47,8 +47,9 @@ _DATE = re.compile(
     r"|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}"
 )
 _NEGATION = re.compile(
-    r"(?i)\b(can't|cannot|can not|not|no|doesn't|does not|isn't|which|whether|never|shouldn't)\b"
-)
+    r"(?i)\b(can't|cannot|can not|not|no|doesn't|does not|don't|do not|didn't|did not|isn't|"
+    r"aren't|wasn't|won't|which|whether|never|shouldn't)\b"
+)  # "don't"/"do not" added after red-team R5: "documents don't say delays are caused by supplier..."
 _SCALE = {"million": 1e6, "M": 1e6, "K": 1e3, "k": 1e3}
 # Years of the data period and document/version years named in the agent's own instructions.
 INSTRUCTION_CONSTANTS = {2015.0, 2016.0, 2017.0, 2018.0, 2023.0, 2024.0, 2025.0, 2026.0}
@@ -229,7 +230,7 @@ def causal_claims(answer: AgentAnswer) -> list[str]:
             sentence_start = (
                 max(answer.text.rfind(".", 0, m.start()), answer.text.rfind("\n", 0, m.start())) + 1
             )
-            lead = answer.text[sentence_start : m.start() + 20]
+            lead = answer.text[sentence_start : m.start() + 20].replace("’", "'")
             if not _NEGATION.search(lead):
                 found.append(m.group(0))
     return found

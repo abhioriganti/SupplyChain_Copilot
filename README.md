@@ -15,6 +15,7 @@
   - Shorter answers cut p95 latency from 32 to 25 s.
   - See [docs/evaluation_findings.md](docs/evaluation_findings.md).
   - Every request is logged to a monitoring table.
+- **Red-teamed:** 7 indirect prompt-injection attacks planted in a sandbox copy of the document corpus (instruction override, exfiltration, phishing, destructive SQL, a fake causal claim, hidden markup and a spoofed manual section). The production agent configuration resisted all 6 instruction attacks and rejected the spoof; see [docs/redteam_findings.md](docs/redteam_findings.md).
 - **Cost and access:** Cortex is granted explicitly to the two project roles (revoked from PUBLIC). An account budget alerts on spend, and the warehouse has a resource monitor.
 
 ## Architecture

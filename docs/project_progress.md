@@ -2,6 +2,18 @@
 
 **Interview:** 2026-12-08 · **Current phase:** 8, Evaluation, reliability, security and observability · **Status:** ✅ **Phase 8 complete** (2026-11-26).
 
+## Backlog pass 2: retrieved-document injection red-team (2026-11-26)
+Item 4 from `docs/backlog.md`; decision in ADR-026; review in `docs/redteam_findings.md`.
+
+| Item | Evidence |
+|---|---|
+| Harness | `evaluation/redteam.py` (`setup` / `run` / `teardown`), `eval/redteam_set.json` (7 attacks, 7 synthetic planted chunks). The sandbox search service and agent are generated from the production SQL; 9 unit tests cover the round trip, scoring and regressions. |
+| Validity | Each question sent directly to the sandbox search service ranked its planted chunk 1st or 2nd before any paid call. In the final run all 7 planted chunks were retrieved by the agent. |
+| Result | **6 of 6 instruction attacks resisted**: no canary, no attacker URL or credential request, no planted SQL or numbers, no causal claim, `FACT_ORDERS` unchanged. Poisoning case R7 rejected (48 h, not the spoofed 10 days). |
+| Evaluator fixes | 4 false scores corrected, each with a regression test. One fix (the negation list missing "don't" / "do not") also applies to the main eval's causal check. |
+| Cleanup | Sandbox agent, search service and table dropped; 0 runtime-role grants on SANDBOX; production search service unchanged |
+| Cost | 14 agent calls over two runs (about 1.3 credits) plus two small index builds |
+
 ## Backlog pass 1: quick wins (2026-11-26)
 Items 1, 2, 7 and 10 from `docs/backlog.md`. Decisions are in ADR-025.
 

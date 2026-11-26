@@ -27,7 +27,7 @@ This is a consolidated list from Phases 0–8, so the work can be picked up late
 | 1 | ~~Shorter answers~~ **done 2026-11-26** (p95 32 → 25 s). Still open: A/B test pinning `claude-sonnet-5-5` for orchestration | Total latency is still 13–25 s. Any model change needs a full eval re-run (about 3 credits). | S | Phase 7b, ADR-023, ADR-025 |
 | 2 | ~~More semantic-view metrics and dimensions~~ **done 2026-11-26**: margin, discount, order value, customers, week, weekday | Missing metrics push the agent toward its own arithmetic or raw SQL | — | Phase 8, ADR-025 |
 | 3 | Multi-turn evaluation (follow-ups, context drift) | Not covered by the 34 single-turn cases | M | Phase 8 |
-| 4 | Red-team for instructions planted inside documents (a test corpus or a separate service) | Document injection resistance is instruction-based and untested | M | Phases 6, 8 |
+| 4 | ~~Red-team document injection~~ **done 2026-11-26**: 7 attacks in a sandbox corpus; 6/6 resisted, poisoning rejected (`docs/redteam_findings.md`). Still open: adaptive/multi-turn attacks, other languages, many planted passages at once. | Was instruction-based and untested | — | Phases 6, 8, ADR-026 |
 | 5 | Independent labelling or a second reviewer for the eval sets; repeat runs to measure variance | Labels are developer-written; runs are single samples | M | Phases 5, 8 |
 | 6 | Optional LLM-as-judge groundedness score as a second signal | Phrase checks can miss correct wording (S7 run 1) | M | ADR-024 |
 | 7 | ~~Budget for Cortex spend~~ **done 2026-11-26**: account budget, 50 credits/month, email alerts (alerts only, forecast-based) | Resource monitors cover warehouses only | — | ADR-005, ADR-025 |
