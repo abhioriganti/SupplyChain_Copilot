@@ -365,3 +365,62 @@ def test_hash_v2_covers_actor_time_and_order_and_v1_rows_still_verify():
     v1 = replace(h[0], hash_version=1, event_hash=model.chain_hash(model.GENESIS, h[0].payload))
     assert model.verify_chain([v1]) == []
     assert not model.verify_chain([replace(v1, actor="Someone Else")])  # v1 limitation, documented
+
+
+# ----------------------------------------------------------------------------- anchors (ADR-030)
+
+
+def test_rehashed_forgery_passes_chain_check_but_changes_the_anchored_head():
+    """The threat the anchor exists for: an owner who edits a row AND recomputes the chain."""
+    from supplychain_copilot.incidents import model
+    from supplychain_copilot.incidents.anchor_probe import DETAILS, rewrite_history
+
+    c = model.build_event([], model.CREATED, "a", "system", DETAILS)
+    d = model.build_event([c], model.DRAFTED, "supply_chain_copilot", "agent", {"draft": "x"})
+    forged = rewrite_history([c, d], 1, {**DETAILS, "severity": "critical"})
+    assert model.verify_chain(forged) == []  # internal check fooled
+    assert forged[0].details["severity"] == "critical"
+    assert forged[-1].event_hash != d.event_hash  # the anchored head no longer matches
+    assert rewrite_history([c, d], 1, DETAILS)[-1].event_hash == d.event_hash  # no-op is exact
+
+
+def test_anchor_sql_keeps_anchors_outside_the_owner_role():
+    import re
+
+    from supplychain_copilot.config import PROJECT_ROOT
+
+    sql = (PROJECT_ROOT / "sql" / "00_setup" / "05_audit_anchor.sql").read_text(encoding="utf-8")
+    code = "\n".join(line.split("--")[0] for line in sql.splitlines())
+    role_grants = re.findall(r"GRANT ROLE SCC_AUDIT_ROLE TO (\w+ \w+)", code)
+    assert role_grants == ["ROLE ACCOUNTADMIN"]  # never the dev role, SYSADMIN or a service user
+    writes = re.findall(
+        r"GRANT ([A-Z, ]+) ON (?:TABLE|VIEW|PROCEDURE|SCHEMA|DATABASE) [^;]*TO ROLE SCC_(?:DEV|APP)_ROLE",
+        code,
+    )
+    assert writes and all(set(w.replace(" ", "").split(",")) <= {"USAGE", "SELECT"} for w in writes)
+    assert (
+        "EXECUTE AS OWNER" in code and "USER_TASK_MANAGED_INITIAL_WAREHOUSE_SIZE = 'XSMALL'" in code
+    )
+    assert "GRANT SELECT ON TABLE SCC_DB.APP.INCIDENT_AUDIT_LOG TO ROLE SCC_AUDIT_ROLE" in code
+
+
+def test_anchor_status_labels_and_memory_store():
+    from supplychain_copilot.incidents.store import InMemoryStore
+    from supplychain_copilot.ui.incidents import anchor_label
+
+    assert anchor_label(None).startswith("⏳") and anchor_label(True).startswith("✅")
+    assert "differs" in anchor_label(False)
+    assert InMemoryStore().anchor_check() == []
+
+
+def test_snowflake_store_anchor_check_degrades_when_not_set_up():
+    from contextlib import contextmanager
+
+    from supplychain_copilot.incidents.store import SnowflakeIncidentStore
+
+    @contextmanager
+    def broken():
+        raise RuntimeError("Database 'SCC_AUDIT_DB' does not exist or not authorized")
+        yield
+
+    assert SnowflakeIncidentStore(session_factory=broken).anchor_check() == []

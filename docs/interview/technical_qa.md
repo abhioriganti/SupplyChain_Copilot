@@ -67,7 +67,7 @@ Layered, because no single control is enough:
 - SSO in front of the app
 - secrets in a vault
 - network policies
-- audit-log anchoring outside the owner role
+- an off-account (WORM) copy of the audit anchors; the in-account anchor is built (ADR-030)
 
 ### 8. How would you implement document-level permissions?
 - **The key fact:** Cortex Search runs with the *owner's* rights. A filter the client sends (such as `ACCESS_GROUP`) is a convenience, **not** a security boundary (ADR-009).

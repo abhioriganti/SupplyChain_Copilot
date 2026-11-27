@@ -441,3 +441,33 @@ Totals vary run to run on the service side.
 - Policy inheritance (`INHERIT_DATA_GOVERNANCE_POLICIES`) wasn't tested.
 
 **Cost:** one extra index over 111 chunks (serving cost) and 7 search queries. No LLM tokens.
+
+## ADR-030: Anchor audit-chain heads in a database the owner role can't write
+**Status:** Accepted (2026-11-27, backlog #13)
+**Context:** hash v2 (ADR-027) detects edits by anyone who doesn't recompute the chain. But `SCC_DEV_ROLE` owns `APP.INCIDENT_AUDIT_LOG`, so it could edit a row, recompute every later hash and link, and `V_INCIDENT_CHAIN_CHECK` would still say intact.
+**Decision:**
+- **Separate owner.** `SCC_AUDIT_ROLE` owns a separate database, `SCC_AUDIT_DB`. It is granted to ACCOUNTADMIN only: not to the dev role, SYSADMIN or any service user. It holds SELECT on the log and nothing else in `SCC_DB`.
+- **Anchoring.** `ANCHOR_CHAIN_HEADS` (owner's rights, idempotent) records each incident's latest `(SEQ, EVENT_HASH)`. A daily serverless task (XSMALL) calls it, and the dev role may call it on demand. Calling it can only add anchors.
+- **Why the head is enough.** Every hash covers the previous one, so anchoring the head protects all earlier rows.
+- **Check.** `V_ANCHOR_CHECK` reports, per incident, anchors that are MISSING (row deleted) or MISMATCHED (row rewritten). The dev and app roles can only SELECT it; the Incidents tab shows it.
+- **One script.** Setup is a single ACCOUNTADMIN script (`sql/00_setup/05_audit_anchor.sql`), which uses MANAGE GRANTS for the SELECT on the dev-owned log.
+
+**Evidence** (`incidents/anchor_probe.py`, `data/processed/anchor_probe_results.json`):
+
+| Step | Chain check | Anchor check |
+|---|---|---|
+| Simulated test incident written by the app role, then anchored | OK | OK |
+| Dev role edits seq 1 (severity low → critical) and recomputes every hash | **still OK (fooled)** | **FALSE (1 mismatch)** |
+| Dev role tries to UPDATE the anchors, DELETE them, DROP the view, SUSPEND the task | — | all denied |
+| Original rows restored | OK | OK |
+
+All 8 incidents in the log were anchored and matched afterwards.
+
+**Not covered:**
+- Events newer than the last anchor (up to a day; anchoring on each decision would close it).
+- ACCOUNTADMIN, who holds the audit role. Production would also copy the anchors to a separate account or WORM object storage.
+- Deleting the log table outright is visible (the check errors or reports MISSING), not prevented.
+
+**Alternatives considered:**
+- Anchors in another schema of `SCC_DB`: rejected, because the database owner is the role being guarded against.
+- External WORM storage: the stronger option, but it needs external access and cloud storage outside this demo.

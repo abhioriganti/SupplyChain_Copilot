@@ -82,6 +82,14 @@ def new_incident_form(service: IncidentService) -> None:
     _submit(service, event.incident_id)
 
 
+def anchor_label(anchor_ok: bool | None) -> str:
+    """ADR-030: anchors are held outside the owner role, so they catch a rewritten-and-rehashed chain
+    that the chain check alone would call intact."""
+    if anchor_ok is None:
+        return "⏳ not yet anchored"
+    return "✅ matches anchor" if anchor_ok else "❌ differs from anchor"
+
+
 def incident_list(service: IncidentService) -> str | None:
     rows = service.store.statuses()
     if not rows:
@@ -93,6 +101,8 @@ def incident_list(service: IncidentService) -> str | None:
     df["AUDIT CHAIN"] = df["INCIDENT_ID"].map(
         lambda i: "✅ intact" if chain.get(i) else "❌ broken"
     )
+    anchors = {r["INCIDENT_ID"]: r["ANCHOR_OK"] for r in service.store.anchor_check()}
+    df["ANCHOR"] = df["INCIDENT_ID"].map(lambda i: anchor_label(anchors.get(i)))
     cols = [
         c
         for c in (
@@ -104,6 +114,7 @@ def incident_list(service: IncidentService) -> str | None:
             "DECIDED_BY",
             "APPROVAL_URL",
             "AUDIT CHAIN",
+            "ANCHOR",
         )
         if c in df.columns
     ]

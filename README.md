@@ -117,7 +117,7 @@ Details: [docs/agent_architecture.md](docs/agent_architecture.md)
 | Multi-turn conversations | 6 of 6 conversations, 12 of 12 turns (follow-ups, pronouns, topic switch, late injection) |
 | Repeat runs (variance) | 3 runs × 37 cases: governed-tool routing identical, ground truth matched every time; 36 of 37 cases passed in every run, all 108 after one evaluator correction |
 | Document-tier access probes | 7 of 7: public tier denied the supplier corpus; a client filter shown not to be a boundary (ADR-029) |
-| Automated tests | 171 unit, UI and logic tests (CI) + 14 live Snowflake tests |
+| Automated tests | 175 unit, UI and logic tests (CI) + 14 live Snowflake tests |
 
 The full review, including what the evaluation **does not** establish, is in [docs/evaluation_findings.md](docs/evaluation_findings.md).
 
@@ -133,7 +133,11 @@ The full review, including what the evaluation **does not** establish, is in [do
 - **Secrets.** Key-pair auth, with private keys outside the repo. `.env` is gitignored. The CI secret scan covers private keys, JWTs, credential assignments, GitHub and Slack tokens, and Slack webhooks. A full-history scan (all commits) found no real secrets.
 - **Document tiers.** Cortex Search runs with owner's rights, so access is enforced by USAGE on separate services per tier, not by filters. A public-tier role can query only a 10-K-only service, and 7 probes confirm the denials (ADR-029). The tier roles are also granted to the runtime user so the probes can run as it; they reach no tables and no corpus beyond what the app role already reaches.
 - **Cortex access** is granted explicitly and revoked from PUBLIC. An account budget alerts on spend, and the warehouse has a 25-credit resource monitor.
-- **Audit:** append-only incident log, SHA-256 chained over who, what, when and order, and verified in SQL. Tampering with an approver flips the check to FALSE.
+- **Audit:**
+  - an append-only incident log, SHA-256 chained over who, what, when and order, and verified in SQL
+  - tampering with an approver flips the check to FALSE
+  - each incident's latest hash is anchored daily in a separate database the owner role can't write to (ADR-030)
+  - a probe showed a fully rehashed forgery passing the chain check but failing the anchor check
 
 ## 12. Screenshots
 | Delivery dashboard | Simulated incident workflow |
@@ -181,11 +185,11 @@ $env:SCC_RUN_SNOWFLAKE_TESTS="1"; .venv\Scripts\pytest -m snowflake     # live, 
   - local and single-user, with no SSO
   - latency is 13–25 s
   - names in the incident workflow are self-declared, so separation of duties compares names, not authenticated identities
-  - the owner role could rewrite the hash chain; production would anchor the chain head outside it
+  - audit-chain anchors are held by a separate role inside the same Snowflake account, granted to ACCOUNTADMIN. That account administrator could still alter them; production would also copy the anchors to a separate account or WORM storage.
 - **Cost:** a single-developer on-demand account (upgraded from a trial on 2026-11-27). Budgets alert but don't stop spend.
 
 ## 15. Future improvements
-SSO and hosted deployment; routing signed-in users to a per-tier agent (the tier enforcement itself is built); longer multi-turn and independently labelled evaluation; re-testing newer fast orchestration models; Snowflake Tasks or dbt for scheduled refresh; anchoring the audit chain outside the owner role; and connectors for enterprise sources such as ERP and document stores. The full list, with the reason for each, is in [docs/backlog.md](docs/backlog.md).
+SSO and hosted deployment; routing signed-in users to a per-tier agent (the tier enforcement itself is built); longer multi-turn and independently labelled evaluation; re-testing newer fast orchestration models; Snowflake Tasks or dbt for scheduled refresh; copying audit anchors off-account (WORM storage); and connectors for enterprise sources such as ERP and document stores. The full list, with the reason for each, is in [docs/backlog.md](docs/backlog.md).
 
 ---
 *Built as an independent portfolio project for an interview. All data is public; no Worthington systems, credentials or internal information were used.*

@@ -2,6 +2,16 @@
 
 **Interview:** 2026-12-08 · **Current phase:** 10, Final validation and interview preparation · **Status:** ✅ Phases 0–10 complete (2026-11-26). Interview materials: `docs/interview/`.
 
+## Backlog pass 5: audit-chain anchors outside the owner role (2026-11-27)
+| Item | Evidence |
+|---|---|
+| Setup | `sql/00_setup/05_audit_anchor.sql`, run by the account owner as ACCOUNTADMIN. It creates `SCC_AUDIT_ROLE` (ACCOUNTADMIN only), `SCC_AUDIT_DB.ANCHOR` (anchor table, owner's-rights procedure, `V_ANCHOR_CHECK`), a daily serverless task, and read-only grants to the dev and app roles. |
+| Probe | `incidents/anchor_probe.py`: a rehashed forgery by the owner role left the chain check OK but set the anchor check FALSE. Owner edits, deletes, view drop and task suspend were all denied. The rows were restored and both checks are OK again. |
+| App | Incidents tab: new ANCHOR column, read as the runtime role; shows "not yet anchored" if the anchor database is unavailable |
+| State | 8 of 8 incidents anchored and matching (one is the labelled probe record) |
+| Task | Confirmed by the account owner as ACCOUNTADMIN (`SHOW TASKS IN SCHEMA SCC_AUDIT_DB.ANCHOR`): `ANCHOR_DAILY` is owned by `SCC_AUDIT_ROLE`, serverless (no warehouse), `USING CRON 0 6 * * * UTC`, state `started`. The dev role can't see the task, by design. |
+| Tests | 175 CI tests pass; Ruff clean |
+
 ## Backlog pass 4: repeat runs for variance (2026-11-27)
 | Item | Evidence |
 |---|---|

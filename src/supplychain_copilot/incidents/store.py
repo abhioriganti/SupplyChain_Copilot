@@ -29,6 +29,11 @@ class IncidentStore(Protocol):
 
     def chain_check(self) -> list[dict[str, Any]]: ...
 
+    def anchor_check(self) -> list[dict[str, Any]]: ...
+
+
+ANCHOR_CHECK_SQL = "SELECT * FROM SCC_AUDIT_DB.ANCHOR.V_ANCHOR_CHECK"
+
 
 class InMemoryStore:
     def __init__(self) -> None:
@@ -61,6 +66,9 @@ class InMemoryStore:
 
         ids = dict.fromkeys(e.incident_id for e in self.events)
         return [{"INCIDENT_ID": i, "CHAIN_OK": not verify_chain(self.history(i))} for i in ids]
+
+    def anchor_check(self) -> list[dict[str, Any]]:
+        return []  # anchors live in Snowflake (SCC_AUDIT_DB, ADR-030)
 
 
 class SnowflakeIncidentStore:
@@ -117,6 +125,17 @@ class SnowflakeIncidentStore:
 
         with self._session() as conn:
             return query(conn, "SELECT * FROM SCC_DB.APP.V_INCIDENT_CHAIN_CHECK")
+
+    def anchor_check(self) -> list[dict[str, Any]]:
+        """Anchors kept outside the owner role (ADR-030). Empty if the anchor database isn't set up
+        or isn't readable, so the incident list still works; the UI then shows 'not anchored'."""
+        from supplychain_copilot.snowflake.connection import query
+
+        try:
+            with self._session() as conn:
+                return query(conn, ANCHOR_CHECK_SQL)
+        except Exception:  # noqa: BLE001 - optional control; absence is shown, not fatal
+            return []
 
 
 def _event_from_row(r: dict[str, Any]) -> Event:

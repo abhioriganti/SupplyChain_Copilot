@@ -48,7 +48,16 @@ Streamlit "Incidents" tab                       n8n 2.47.5 (Docker, 127.0.0.1:56
 4. The live test confirmed that Snowflake's `TO_VARCHAR(…, 'YYYY-MM-DD"T"HH24:MI:SS.FF6')` matches Python byte for byte.
 5. Five v1 incidents and one v2 incident all verify.
 
-**What it still doesn't do:** the owner role could recompute every hash after editing. Tamper *evidence* against an owner needs the chain head anchored outside its control, for example a periodic export of the latest hash to a separate account or a WORM store. That's noted as a production step.
+**Anchors (ADR-030):** the owner role could recompute every hash after editing, so each incident's latest `(SEQ, EVENT_HASH)` is also recorded in `SCC_AUDIT_DB`. That database is owned by `SCC_AUDIT_ROLE`, which only ACCOUNTADMIN holds. A daily serverless task and an owner's-rights procedure keep it current; `V_ANCHOR_CHECK` compares it with the log, and the Incidents tab shows it in the **ANCHOR** column.
+
+**Tamper probe** (`incidents/anchor_probe.py`):
+- an owner-role edit with every hash recomputed left `CHAIN_OK = TRUE` but set `ANCHOR_OK = FALSE`
+- the owner role's attempt to edit the anchors was denied
+- after restoring the rows, both checks are OK again
+
+**What it still doesn't do:**
+- protect events newer than the last anchor (up to a day)
+- guard against ACCOUNTADMIN, who could alter the anchors; production would also copy them to a separate account or WORM storage
 
 ## Slack notifications (optional)
 The approver doesn't have to watch n8n: when an approval is needed, the workflow posts to a Slack channel.
