@@ -2,6 +2,15 @@
 
 **Interview:** 2026-12-08 · **Current phase:** 10, Final validation and interview preparation · **Status:** ✅ Phases 0–10 complete (2026-11-26). Interview materials: `docs/interview/`.
 
+## Backlog pass 4: repeat runs for variance (2026-11-27)
+| Item | Evidence |
+|---|---|
+| Harness | `runner --yes --repeat LABEL` writes `eval_v2_results_LABEL.json` and leaves the report untouched. `evaluation/variance.py` writes `docs/variance_report.md`. |
+| Result | Run 5 vs repeat 2 on 34 cases: governed-tool routing identical, ground truth matched in both, 34/34 in both after the A3 evaluator correction. Latency p50 13.7 vs 14.2 s. |
+| Blocker found | **B-002:** the trial's included AI credits were used up partway through repeat 2 (HTTP 403, code 399588). Every Cortex call now fails, **including the app**. Restoring them is the account owner's action in Snowsight (Admin → Billing). |
+| Fixes | `classify_error` → `quota` (the error was shown as a permission problem). The variance tool excludes infrastructure failures. A3 phrase list corrected. All three have regression tests. |
+| Tests | 171 CI tests pass; Ruff clean |
+
 ## Backlog pass 3: model A/B, multi-turn, document tiers (2026-11-26)
 | Item | Evidence |
 |---|---|
@@ -463,6 +472,7 @@ Observed response shape for agent `:run` (non-streaming): top-level keys `conten
 `docs/{project_progress,architecture_decisions,data_sources}.md`
 
 ## Blockers
+- **B-002 (open, 2026-11-27):** the trial account has used its included AI credits (HTTP 403, code `399588`). Cortex Agent, Analyst and Search calls fail until the account owner restores AI credits. Needed before more eval runs and before the live demo.
 - **B-001 (resolved 2026-11-25):** The trial account disabled AI features (errors `399258` and `399504`). Resolved by adding a credit card. All probes now pass.
 
 ## Remaining phases (plan)

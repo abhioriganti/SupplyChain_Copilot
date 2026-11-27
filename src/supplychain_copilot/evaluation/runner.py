@@ -315,8 +315,12 @@ VARIANTS = {
 }
 
 
-def run_variant(label: str, only: list[str] | None) -> int:
-    run_id, results = run(only, agent_path=VARIANTS[label], label=label)
+def run_variant(label: str, only: list[str] | None, agent_path: str | None = None) -> int:
+    """Run the eval and write data/processed/eval_v2_results_{label}.json only (the report is untouched).
+
+    Used for A/B variants (agent_path from VARIANTS) and for repeat runs of the production agent
+    (agent_path None) that measure run-to-run variance (backlog #5, evaluation.variance)."""
+    run_id, results = run(only, agent_path=agent_path, label=label)
     out = PROJECT_ROOT / "data" / "processed" / f"eval_v2_results_{label}.json"
     out.write_text(
         json.dumps(
@@ -325,9 +329,12 @@ def run_variant(label: str, only: list[str] | None) -> int:
                 "cases": [
                     {
                         "id": r.case["id"],
+                        "category": r.case["category"],
                         "passed": r.passed,
                         "checks": {k: {"ok": ok, "detail": d} for k, (ok, d) in r.checks.items()},
-                        "latency_s": r.answer.latency_s,
+                        "ungrounded": r.ungrounded,
+                        "latency_s": round(r.answer.latency_s, 2),
+                        "tools": sorted(r.answer.tools_used),
                         "text": r.answer.text,
                     }
                     for r in results
@@ -338,7 +345,7 @@ def run_variant(label: str, only: list[str] | None) -> int:
         ),
         encoding="utf-8",
     )
-    print(f"[{label}] {sum(r.passed for r in results)}/{len(results)} passed; wrote {out.name}")
+    print(f"[{run_id}] {sum(r.passed for r in results)}/{len(results)} passed; wrote {out.name}")
     return 0 if all(r.passed for r in results) else 1
 
 
@@ -351,12 +358,19 @@ def main() -> int:
         choices=sorted(VARIANTS),
         help="run against a sandbox agent variant (A/B); writes to data/processed only",
     )
+    p.add_argument(
+        "--repeat",
+        metavar="LABEL",
+        help="repeat run of the production agent (variance); writes eval_v2_results_LABEL.json only",
+    )
     args = p.parse_args()
     if not args.yes:
         print("Runs the Cortex Agent once per case (paid). Re-run with --yes.")
         return 2
     if args.variant:
-        return run_variant(args.variant, args.only)
+        return run_variant(args.variant, args.only, VARIANTS[args.variant])
+    if args.repeat:
+        return run_variant(args.repeat, args.only)
     run_id, results = run(args.only)
     probes = privilege_boundary()
     suites = sql_suites()

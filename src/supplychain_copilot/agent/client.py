@@ -245,6 +245,9 @@ def parse_response(question: str, resp: dict[str, Any], latency_s: float = 0.0) 
 
 
 _REFUSAL = ("refused to process this request", "content safety")
+# HTTP 403 code 399588: the account's AI credits are used up (seen on the trial, 2026-11-27). Not a role
+# problem, so it must not be reported as one.
+_QUOTA = ("399588", "used its included ai credits")
 
 
 def classify_error(status: int | None, body: str) -> str:
@@ -255,6 +258,8 @@ def classify_error(status: int | None, body: str) -> str:
     low = (body or "").lower()
     if any(s in low for s in _REFUSAL):
         return "refused"
+    if any(s in low for s in _QUOTA):
+        return "quota"
     reason = {401: "auth", 403: "permission", 429: "rate_limited"}.get(status or 0, "service")
     # 399504 is a general Cortex error code (the safety refusal above carries it too), so it alone
     # is not evidence of a permission problem; "not accessible" is.
@@ -272,6 +277,8 @@ def fallback(question: str, reason: str, detail: str, latency_s: float = 0.0) ->
         "timeout": "The request took too long and was stopped. Try a narrower question.",
         "service": "The assistant hit a service error. Please try again; if it persists, check Snowflake status.",
         "empty": "The assistant returned no answer for this question. Try rephrasing it.",
+        "quota": "The assistant is unavailable: this Snowflake account has used its AI credit allowance. "
+        "An account administrator needs to restore AI credits.",
         "refused": "The assistant declined this request. It can't run commands, change data or share "
         "its configuration. Ask about delivery metrics or supplier procedures instead.",
     }

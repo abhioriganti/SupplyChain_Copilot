@@ -225,3 +225,15 @@ def test_model_safety_refusal_is_not_shown_as_a_permission_problem():
     assert classify_error(500, "boom") == "service"
     msg = fallback("q", "refused", "x").text
     assert "declined" in msg and "access" not in msg
+
+
+def test_exhausted_ai_credits_is_not_shown_as_a_permission_problem():
+    """2026-11-27 repeat runs: HTTP 403 code 399588 (trial AI credits used up) was shown as 'role doesn't
+    have access'."""
+    from supplychain_copilot.agent.client import classify_error
+
+    body = '{"message": "Your trial account has used its included AI credits. Please upgrade to a paid account to continue.", "code": "399588"}'
+    assert classify_error(403, body) == "quota"
+    assert classify_error(403, "Insufficient privileges") == "permission"
+    a = _agent([SnowflakeRestError(403, body)]).ask("question")
+    assert a.error.startswith("quota") and "credit" in a.text and "role" not in a.text

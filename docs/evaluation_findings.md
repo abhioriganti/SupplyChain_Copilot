@@ -164,6 +164,34 @@ Six conversations, each replayed with the app's history format (the last three t
 
 **Limits:** six conversations of two turns each, a single sample, developer-written. Longer conversations (5+ turns) and history truncation at the three-pair limit aren't covered.
 
+## Repeat runs (variance, backlog #5): run 5 vs `eval-repeat2-20261127T001548`, `docs/variance_report.md`
+Two more runs of the unchanged production agent were planned. Partway through repeat 2, every call started failing in about 1 second with **HTTP 403, code 399588: the trial account used up its included AI credits.** Those trials never reached the model, so they are **excluded, not scored**:
+- X5–X7 in repeat 2
+- all of repeat 3
+
+| | Run 5 | Repeat 2 |
+|---|---|---|
+| Passed (34 comparable cases) | 34 / 34 | 33 / 34 raw; **34 / 34** after the A3 correction |
+| p50 / p95 latency | 13.7 / 25.4 s | 14.2 / 25.2 s |
+
+**Comparison across the two runs:**
+- **Governed-tool routing:** identical for all 34 cases.
+- **Numbers:** every structured and hybrid answer matched the run-time SQL ground truth in both runs.
+- **Wording varies:** a chart was drawn in one run only for 6 cases (presentation only), and per-case latency varied by up to 11.7 s.
+- **A3 ("Which product category performs worst?"):** an evaluator false negative.
+  - The answer opened *"It depends on what 'worst' means"* and gave the same figures as run 5 (lowest margin Strength Training 0.5%; highest late rate Golf Bags & Carts 68.9%).
+  - No phrase in the "acknowledges ambiguity" list matched, and run 5 had passed only through an incidental "by ".
+  - Fix: "depends on" and "which measure" were added, with a regression test that still rejects an answer that doesn't acknowledge the ambiguity.
+
+**Two client fixes from the outage:**
+- **Error message.** The app showed the credit error as "the role doesn't have access", which is the same class of bug as X3. `classify_error` now returns `quota` with an honest message, and a test covers it.
+- **Variance scoring.** `evaluation/variance.py` excludes credit-exhausted trials instead of scoring them as failures.
+
+**Limits:**
+- k = 2 on 34 cases is a small sample; it shows stability, not a failure-rate estimate.
+- X5–X7 have one sample each.
+- Restoring AI credits is the account owner's action; more runs need it.
+
 ## Document-tier access probes (`evaluation/doc_tiers.py`): 7 of 7 as expected (ADR-029)
 Real Cortex Search REST queries as `SCC_APP_SVC`, switching only the role header. Each probe asks a supplier-manual question, so a leak would show.
 

@@ -11,7 +11,7 @@
 4. **Warm the cache in the same browser tab you'll present from:** click each of the three welcome cards once. The cache is per browser session, so refreshing the tab clears it. During the demo the answers return instantly, labelled "Reused from earlier in this session". If asked, say so honestly: *"I pre-ran these to save time; 'Ask again live' re-runs it."*
 5. **Optional, for the Incidents tab:** run `docker compose --env-file .env -f n8n/docker-compose.yml up -d`, then `.venv\Scripts\python -m supplychain_copilot.incidents.api` in a second terminal.
 6. **Have open in other tabs:** the README on GitHub (diagram), this file, and `docs/images/` (screenshots).
-7. **Credits:** the Snowsight balance and the account budget (50 credits a month). The demo uses roughly 0.5 credits.
+7. **Credits:** the Snowsight balance and the account budget (50 credits a month). The demo uses roughly 0.5 credits. **Check AI credits specifically:** on 2026-11-27 the trial's included AI credits ran out mid-evaluation (HTTP 403, code 399588), and every Cortex call failed while warehouse SQL still worked. The app now says so plainly ("this Snowflake account has used its AI credit allowance"). If it appears on the day, switch to the screenshots and the saved evaluation reports.
 8. **Trial ends about 2026-12-25.** No action needed before the interview.
 
 ## Verified outputs (queried directly in Snowflake, 2026-11-26)

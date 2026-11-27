@@ -401,6 +401,12 @@ def test_run4_wording_regressions():
     )
     assert checks.missing_groups(s7, [cases["S7"]["text_all"][1]]) == []
     assert checks.missing_groups(h1, [cases["H1"]["text_all"][0]]) == []
+    # Repeat run 2 (A3): it framed the ambiguity as "depends on what worst means", which no phrase covered.
+    a3 = 'It depends on what "worst" means. Strength Training has the lowest profit margin.'
+    assert checks.missing_groups(a3, cases["A3"]["text_all"]) == []
+    assert checks.missing_groups(
+        "Strength Training has the lowest profit margin.", [cases["A3"]["text_all"][1]]
+    )
     # still strict: a wrong deadline is not accepted
     assert checks.missing_groups("corrective actions within 10 days", [cases["H1"]["text_all"][0]])
 
@@ -491,3 +497,68 @@ def test_document_tier_probe_maps_http_errors_to_denied():
         {dt.PUBLIC_ROLE: Fake({"results": [{"DOCUMENT_TYPE": "supplier_quality_manual"}]})},
     )
     assert not leak["passed"]
+
+
+def test_variance_counts_flaky_consistent_and_tool_changes():
+    """Backlog #5: pass@1 vs passed-in-every-run, flaky detection, routing stability."""
+    from supplychain_copilot.evaluation.variance import analyse, render
+
+    def case(cid, passed, tools, lat, fail=None):
+        checks = {"completed": {"ok": True, "detail": "completed"}}
+        if fail:
+            checks[fail] = {"ok": False, "detail": "missing phrase"}
+        return {
+            "id": cid,
+            "category": "structured",
+            "passed": passed,
+            "checks": checks,
+            "latency_s": lat,
+            "tools": tools,
+        }
+
+    def run(rid, cases):
+        return {"run_id": rid, "cases": {c["id"]: c for c in cases}}
+
+    a = analyse(
+        [
+            run(
+                "r1",
+                [
+                    case("A", True, ["delivery_analytics"], 10),
+                    case("B", True, ["delivery_analytics"], 12),
+                    case("C", False, ["supplier_documents"], 5, "facts"),
+                ],
+            ),
+            run(
+                "r2",
+                [
+                    case("A", True, ["delivery_analytics"], 14),
+                    case("B", False, ["delivery_analytics", "supplier_documents"], 20, "facts"),
+                    case("C", False, ["supplier_documents"], 6, "facts"),
+                ],
+            ),
+        ]
+    )
+    assert a["k"] == 2 and a["n"] == 3
+    assert a["pass_all_k"] == 1 and abs(a["pass_at_1"] - 3 / 6) < 1e-9
+    assert [c["id"] for c in a["flaky"]] == ["B"] and [c["id"] for c in a["never"]] == ["C"]
+    assert [c["id"] for c in a["tools_unstable"]] == ["B"]
+    # a chart helper appearing in one run only is presentation, not a routing change
+    c1 = analyse(
+        [
+            run("r1", [case("A", True, ["delivery_analytics"], 1)]),
+            run("r2", [case("A", True, ["data_to_chart", "delivery_analytics"], 1)]),
+        ]
+    )
+    assert c1["tools_unstable"] == [] and c1["chart_varies"] == ["A"]
+    md = render(a)
+    assert "### B (structured): 1 of 2" in md and "facts: missing phrase" in md
+
+    # A trial that failed because AI credits ran out is excluded, not counted as a failure.
+    quota = case("A", False, [], 1)
+    quota["checks"]["completed"] = {
+        "ok": False,
+        "detail": 'permission: HTTP 403: {"code" : "399588"}',
+    }
+    b = analyse([run("r1", [case("A", True, ["x"], 10)]), run("r2", [quota])])
+    assert b["n"] == 0 and b["excluded"] == ["A"]
