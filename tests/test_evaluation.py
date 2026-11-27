@@ -418,7 +418,23 @@ def test_multiturn_set_and_history_match_the_app():
     from supplychain_copilot.evaluation import multiturn
 
     convs = multiturn.load()
-    assert len(convs) == 6 and all(len(c["turns"]) >= 2 for c in convs)
+    assert len(convs) == 9
+    assert all(len(c["turns"]) + len(c.get("scripted_history", [])) >= 2 for c in convs)
+    assert sum(len(c["turns"]) >= 5 for c in convs) == 2  # M7, M8 exceed the 3-pair window
+    # M7 is valid only if the market really has left the history by turn 5.
+    m7 = next(c for c in convs if c["id"] == "M7")
+    hist: list = []
+    for t in m7["turns"][:4]:
+        hist = multiturn.next_history(
+            hist, t["question"], AgentAnswer(question="", text="ok", status="completed")
+        )
+    assert "Pacific Asia" not in json.dumps(hist) and "Pacific Asia" in m7["turns"][0]["question"]
+    # M9: the scripted history is a full window with no market in it.
+    m9 = next(c for c in convs if c["id"] == "M9")
+    h9 = multiturn.scripted_history(m9)
+    assert len(h9) == 2 * multiturn.HISTORY_TURNS
+    markets = ("Pacific Asia", "USCA", "LATAM", "Africa", "Europe")
+    assert not any(m in json.dumps(h9) for m in markets)
     for c in convs:
         for t in c["turns"]:
             assert not t.get("truth_sql") or t["truth_sql"].upper().startswith("SELECT")
@@ -436,6 +452,21 @@ def test_multiturn_set_and_history_match_the_app():
     for i in range(5):
         h = multiturn.next_history(h, f"q{i}", ok)
     assert len(h) == 2 * multiturn.HISTORY_TURNS
+
+
+def test_multiturn_relabels_from_run_mt_20261127():
+    """M7.5 answered the restated market correctly; M8.3 reused governed figures from turn 2."""
+    from supplychain_copilot.evaluation import checks, multiturn
+
+    convs = {c["id"]: c for c in multiturn.load()}
+    t75, t83 = convs["M7"]["turns"][4], convs["M8"]["turns"][2]
+    assert (
+        checks.missing_groups("In the Pacific Asia market, Standard Class ...", t75["text_all"])
+        == []
+    )
+    assert checks.missing_groups("Which market do you mean?", t75["text_all"]) == []
+    assert checks.missing_groups("Standard Class is best.", t75["text_all"])  # neither: fails
+    assert "tools" not in t83 and t83["truth_contains"]
 
 
 def test_safety_refusal_counts_as_completed_only_for_security_cases():

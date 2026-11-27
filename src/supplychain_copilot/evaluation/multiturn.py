@@ -40,18 +40,26 @@ def next_history(history: list[dict], question: str, answer: AgentAnswer) -> lis
     return out[-2 * HISTORY_TURNS :]
 
 
+def scripted_history(conv: dict) -> list[dict]:
+    pairs = conv.get("scripted_history", [])[-HISTORY_TURNS:]
+    return [
+        m for q, a in pairs for m in (history_message("user", q), history_message("assistant", a))
+    ]
+
+
 def load() -> list[dict]:
     return json.loads(SET.read_text(encoding="utf-8"))["conversations"]
 
 
-def run() -> tuple[str, list[tuple[dict, int, CaseResult]]]:
+def run(only: list[str] | None = None) -> tuple[str, list[tuple[dict, int, CaseResult]]]:
     run_id = f"mt-{datetime.now(UTC):%Y%m%dT%H%M%S}"
     chunks = pd.read_parquet(CHUNKS_PARQUET)
     agent = CopilotAgent()
     out: list[tuple[dict, int, CaseResult]] = []
     with session(load_settings()) as dev, app_session() as app:
-        for conv in load():
-            history: list[dict] = []
+        for conv in (c for c in load() if not only or c["id"] in only):
+            # Optional scripted prior turns: the exact history the app would send at that point.
+            history = scripted_history(conv)
             for i, turn in enumerate(conv["turns"], start=1):
                 case = {**turn, "id": f"{conv['id']}.{i}", "category": "multi_turn"}
                 truth = query(dev, turn["truth_sql"])[0] if turn.get("truth_sql") else None
@@ -76,9 +84,12 @@ def run() -> tuple[str, list[tuple[dict, int, CaseResult]]]:
     return run_id, out
 
 
-def write(run_id: str, results: list[tuple[dict, int, CaseResult]]) -> None:
-    RESULTS.parent.mkdir(parents=True, exist_ok=True)
-    RESULTS.write_text(
+def write(run_id: str, results: list[tuple[dict, int, CaseResult]], suffix: str = "") -> None:
+    """`suffix` keeps a partial run (--only) from overwriting the full report."""
+    results_path = RESULTS.with_name(RESULTS.stem + suffix + RESULTS.suffix)
+    report_path = REPORT.with_name(REPORT.stem + suffix + REPORT.suffix)
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    results_path.write_text(
         json.dumps(
             {
                 "run_id": run_id,
@@ -121,21 +132,23 @@ def write(run_id: str, results: list[tuple[dict, int, CaseResult]]) -> None:
             f"| {c['id']} | {c['pattern']} | {i} | {r.case['question']} | "
             f"{'✅ pass' if r.passed else '❌ fail'} | {fails[:220]} |"
         )
-    REPORT.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(
         f"{passed_convs}/{len(convs)} conversations, {passed_turns}/{len(results)} turns passed; "
-        f"wrote {REPORT.relative_to(PROJECT_ROOT)}"
+        f"wrote {report_path.relative_to(PROJECT_ROOT)}"
     )
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--yes", action="store_true", help="confirm paid agent calls")
-    if not p.parse_args().yes:
+    p.add_argument("--only", nargs="*", help="conversation ids; writes *_<ids>.json/md")
+    args = p.parse_args()
+    if not args.yes:
         print("Runs the Cortex Agent once per turn (paid, about 0.09 credits each). Add --yes.")
         return 2
-    run_id, results = run()
-    write(run_id, results)
+    run_id, results = run(args.only)
+    write(run_id, results, "_" + "_".join(args.only).lower() if args.only else "")
     return 0 if all(r.passed for _, _, r in results) else 1
 
 

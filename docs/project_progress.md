@@ -2,6 +2,15 @@
 
 **Interview:** 2026-12-08 · **Current phase:** 10, Final validation and interview preparation · **Status:** ✅ Phases 0–10 complete (2026-11-26). Interview materials: `docs/interview/`.
 
+## Backlog pass 7: longer conversations and the history window (2026-11-27)
+| Item | Evidence |
+|---|---|
+| Set | `eval/multiturn_set.json` adds M7 (6 turns), M8 (5 turns) and M9 (a scripted full window with no market, then "that market"). A test proves the M7 and M9 premises: the market is outside the window at the reference. |
+| Harness | `multiturn --only IDS` writes `*_ids` reports, so the full report is not overwritten. `scripted_history` replays the exact history the app would send. |
+| Result | Raw 10 of 12 turns; 12 of 12 after two relabels. M7.5: the context had been restated, so answering Pacific Asia was correct. M8.3: correctly re-used the governed counts from turn 2. M9: asked which market instead of guessing. |
+| Cost | 12 agent calls (about $1) |
+| Tests | 177 CI tests pass; Ruff clean |
+
 ## Backlog pass 6: live Reject and Timeout runs (2026-11-27)
 | Item | Evidence |
 |---|---|
