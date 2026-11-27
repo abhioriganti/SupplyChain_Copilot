@@ -2,6 +2,15 @@
 
 **Interview:** 2026-12-08 · **Current phase:** 10, Final validation and interview preparation · **Status:** ✅ Phases 0–10 complete (2026-11-26). Interview materials: `docs/interview/`.
 
+## Backlog pass 6: live Reject and Timeout runs (2026-11-27)
+| Item | Evidence |
+|---|---|
+| Reject | `INC-CC2E445F15`, production workflow: CREATED → SUBMITTED → REJECTED by a person different from the requester, comment recorded |
+| Timeout | `INC-5EDDD7548E`, a `[TEST]` 2-minute copy (`n8n_workflow.timeout_test_variant`; a test proves it differs only in wait, wording, ID and path): CREATED → SUBMITTED → TIMED_OUT |
+| Integrity | Chain check and anchors OK for both and for all incidents; 4 authenticated API callbacks; a late APPROVED refused with 409 on both |
+| Cleanup | Test workflow unpublished; the API stopped. The n8n CLI can't delete it, so it remains as an inactive `[TEST]` workflow. |
+| Tests | 176 CI tests pass; Ruff clean |
+
 ## Backlog pass 5: audit-chain anchors outside the owner role (2026-11-27)
 | Item | Evidence |
 |---|---|

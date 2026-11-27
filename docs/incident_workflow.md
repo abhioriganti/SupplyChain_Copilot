@@ -93,6 +93,25 @@ The approver doesn't have to watch n8n: when an approval is needed, the workflow
 
 `V_INCIDENT_CHAIN_CHECK` reported 6 events, 0 bad hashes, 0 bad links, 0 sequence gaps, and `CHAIN_OK = TRUE`. The API received exactly 4 authenticated callbacks. A request with a wrong token started the workflow but produced no callback.
 
+## Live Reject and Timeout runs (2026-11-27)
+Two simulated test incidents, both requested by "Test Requester", with no Copilot draft (no Cortex cost):
+
+| Incident | Path | Trail | Notes |
+|---|---|---|---|
+| `INC-CC2E445F15` | Production workflow, decided by a person in the n8n form | CREATED → SUBMITTED_FOR_APPROVAL → **REJECTED** by "Test Approver" (human), comment recorded | |
+| `INC-5EDDD7548E` | `[TEST]` copy with a **2-minute** wait (`n8n_workflow.timeout_test_variant`) | CREATED → SUBMITTED_FOR_APPROVAL → **TIMED_OUT** (n8n, workflow) | Reason recorded: "no decision within 2 minutes (timeout test)" |
+
+**Checks after the runs:**
+- `V_INCIDENT_CHAIN_CHECK` reports `CHAIN_OK` for both, as does the Python twin.
+- Both heads were anchored and `V_ANCHOR_CHECK` matched (ADR-030). All incidents' chains and anchors were OK afterwards.
+- The API logged exactly 4 authenticated callbacks.
+- A late `APPROVED` sent to each incident was refused with **409** ("not allowed when the incident is REJECTED" / "TIMED_OUT"), so final states hold live.
+
+**Setup for the timeout copy:**
+- Generated with `python -m supplychain_copilot.incidents.n8n_workflow --timeout-test OUT --minutes 2`.
+- Imported with `docker cp` plus `n8n import:workflow`, then published.
+- Unpublished after the run. The n8n CLI has no delete command, so remove it in the n8n UI if wanted.
+
 ## Run it
 ```powershell
 docker compose --env-file .env -f n8n/docker-compose.yml up -d          # first start pulls n8nio/n8n:2.47.5
@@ -108,7 +127,7 @@ docker restart scc-n8n                                                     # reg
 ## Limitations (honest)
 - **Identities are self-declared.** Requester and approver names are typed in, so separation of duties compares names, not authenticated users. Production would take both from SSO (for example the n8n form behind an identity-aware proxy, and Streamlit on an SSO host). Backlog item 8.
 - **Single writer.** Snowflake doesn't enforce PRIMARY KEY or UNIQUE on standard tables, so appends are serialised with a process lock. A second concurrent writer could create a duplicate sequence number, which the SQL chain check would flag. Production would use a single service, or a stream and task with a sequencer.
-- **Not tested live:** the 24-hour timeout (`TIMED_OUT`) and the Reject path. Both are covered by the workflow-graph and state-machine unit tests.
+- **The 24-hour timeout was tested live with a 2-minute copy**, not by waiting a day. The copy differs only in the wait limit, the reason wording, and its own ID and webhook path, and a test checks that.
 - **A wrong token is dropped silently.** The webhook answers "Workflow was started" (respond-immediately mode), so a caller with a bad token sees success while nothing is recorded. The incident simply stays `DRAFTED` and can be resubmitted.
 - **Test incidents are kept.** The live pytest writes one incident marked "(automated test)". The log is append-only for the runtime role by design, so test incidents are not deleted.
 - The editor opens on n8n's "AI Assistant" welcome page by default. Choose **Set up later in Settings**, or open `/home/workflows`. The Assistant would send workflow content to n8n's cloud, so it isn't enabled.

@@ -424,3 +424,24 @@ def test_snowflake_store_anchor_check_degrades_when_not_set_up():
         yield
 
     assert SnowflakeIncidentStore(session_factory=broken).anchor_check() == []
+
+
+def test_timeout_test_variant_only_changes_wait_id_path_and_wording():
+    """The live TIMED_OUT run uses a separate 2-minute copy; it must not collide with production."""
+    from supplychain_copilot.incidents import n8n_workflow as w
+
+    prod, test = w.build(), w.timeout_test_variant(2)
+    assert test["id"] != prod["id"] and test["name"].startswith("[TEST]")
+    p_nodes = {n["name"]: n for n in prod["nodes"]}
+    t_nodes = {n["name"]: n for n in test["nodes"]}
+    assert p_nodes.keys() == t_nodes.keys() and test["connections"] == prod["connections"]
+    assert t_nodes["Incident submitted"]["parameters"]["path"] == w.TIMEOUT_TEST_PATH
+    wait = t_nodes["Human approval"]["parameters"]
+    assert (wait["resumeAmount"], wait["resumeUnit"]) == (2, "minutes")
+    assert {n.get("webhookId") for n in test["nodes"]} & {
+        n.get("webhookId") for n in prod["nodes"] if n.get("webhookId")
+    } == set()
+    assert "within 2 minutes (timeout test)" in str(t_nodes["Record: timed out"])
+    assert "within 2 minutes (timeout test)" in str(t_nodes["Notify Slack: outcome"])
+    # production unchanged
+    assert p_nodes["Human approval"]["parameters"]["resumeAmount"] == 24

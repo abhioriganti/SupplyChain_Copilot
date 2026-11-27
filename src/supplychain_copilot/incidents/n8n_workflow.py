@@ -299,11 +299,52 @@ def build() -> dict:
     }
 
 
+TIMEOUT_TEST_ID = "sccSupplierIncidentTimeoutTest"
+TIMEOUT_TEST_PATH = WEBHOOK_PATH + "-timeout-test"
+
+
+def timeout_test_variant(minutes: int = 2) -> dict:
+    """A separate copy for exercising the TIMED_OUT path live without waiting 24 hours.
+
+    Own workflow ID, webhook path and webhook IDs, so importing it never touches the production
+    workflow; only the wait limit and the wording of the timeout reason differ (tested).
+    Delete it from n8n after the run."""
+    wf = json.loads(render())
+    window = f"{minutes} minutes (timeout test)"
+    for node in wf["nodes"]:
+        if "webhookId" in node:
+            node["webhookId"] = str(uuid.uuid5(_NS, "timeout-test:" + node["webhookId"]))
+        params = node["parameters"]
+        if node["name"] == "Incident submitted":
+            params["path"] = TIMEOUT_TEST_PATH
+        if node["name"] == "Human approval":
+            params["resumeAmount"], params["resumeUnit"] = minutes, "minutes"
+    wf = json.loads(
+        json.dumps(wf, ensure_ascii=False).replace("within 24 hours", "within " + window)
+    )
+    wf["id"], wf["name"] = TIMEOUT_TEST_ID, "[TEST] " + wf["name"] + f" - {minutes}-minute timeout"
+    return wf
+
+
 def render() -> str:
     return json.dumps(build(), indent=2, ensure_ascii=False) + "\n"
 
 
 def main() -> None:
+    import argparse
+    from pathlib import Path
+
+    p = argparse.ArgumentParser()
+    p.add_argument("--timeout-test", type=Path, metavar="OUT", help="write the timeout-test copy")
+    p.add_argument("--minutes", type=int, default=2)
+    args = p.parse_args()
+    if args.timeout_test:
+        args.timeout_test.write_text(
+            json.dumps(timeout_test_variant(args.minutes), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"Wrote timeout-test workflow ({args.minutes} min) to {args.timeout_test}")
+        return
     WORKFLOW_FILE.parent.mkdir(parents=True, exist_ok=True)
     WORKFLOW_FILE.write_text(render(), encoding="utf-8", newline="\n")
     print(f"Wrote {WORKFLOW_FILE.relative_to(PROJECT_ROOT)}")

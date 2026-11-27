@@ -117,7 +117,7 @@ Details: [docs/agent_architecture.md](docs/agent_architecture.md)
 | Multi-turn conversations | 6 of 6 conversations, 12 of 12 turns (follow-ups, pronouns, topic switch, late injection) |
 | Repeat runs (variance) | 3 runs × 37 cases: governed-tool routing identical, ground truth matched every time; 36 of 37 cases passed in every run, all 108 after one evaluator correction |
 | Document-tier access probes | 7 of 7: public tier denied the supplier corpus; a client filter shown not to be a boundary (ADR-029) |
-| Automated tests | 175 unit, UI and logic tests (CI) + 14 live Snowflake tests |
+| Automated tests | 176 unit, UI and logic tests (CI) + 14 live Snowflake tests |
 
 The full review, including what the evaluation **does not** establish, is in [docs/evaluation_findings.md](docs/evaluation_findings.md).
 
