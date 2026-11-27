@@ -1,4 +1,4 @@
--- Stop idle Snowflake spend between work sessions (see docs/interview/backup_plan.md).
+-- Stop idle Snowflake spend between work sessions (see docs/app_guide.md).
 -- Run as SCC_DEV_ROLE (owner of the search services):
 --   .venv\Scripts\python scripts\run_sql_file.py sql\90_ops\01_suspend_when_idle.sql
 -- Reverse with sql\90_ops\02_resume_for_demo.sql. Nothing is deleted.

@@ -1,6 +1,6 @@
 # Project progress
 
-**Interview:** 2026-12-08 · **Current phase:** 10, Final validation and interview preparation · **Status:** ✅ Phases 0–10 complete (2026-11-26). Interview materials: `docs/interview/`.
+**Interview:** 2026-12-08 · **Current phase:** 10, Final validation and interview preparation · **Status:** ✅ Phases 0–10 complete (2026-11-26).
 
 ## Backlog pass 8: LLM-as-judge groundedness (2026-11-27)
 | Item | Evidence |
@@ -87,9 +87,7 @@ A separate reviewer audited the whole repo before the interview.
 |---|---|
 | README | `README.md`, rewritten with problem, stack, data, pipeline, semantic layer, RAG, agent, evaluation, security, screenshots, setup, limitations and roadmap |
 | Architecture diagram | `docs/architecture.md` (Mermaid; also summarised in the README) |
-| Demo script (6½ min) | `docs/interview/demo_script.md` |
-| Technical Q&A (13 questions + follow-ups) | `docs/interview/technical_qa.md` |
-| Backup plan, verified outputs, offline walkthrough | `docs/interview/backup_plan.md` |
+| Demo script, Q&A and backup plan | Kept outside the repository (personal preparation notes) |
 | Screenshots | `docs/images/app_home.png`, `app_hybrid_answer.png`, `app_dashboard.png`, `app_incidents.png`, captured from the live app |
 | Evaluation report | `docs/evaluation_report.md` (generated, run 5) and `docs/evaluation_findings.md` (review, runs 1–5) |
 

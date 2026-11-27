@@ -35,9 +35,12 @@ If the runtime user isn't configured, the app fails closed: it shows a warning a
 - **No secrets in the browser:** credentials load server-side from `.env`. `client.showErrorDetails = "none"` hides tracebacks, and errors show friendly text (tested: a failure message containing an account name isn't displayed).
 - **Feedback** stores question, answer excerpt, rating, tools, citation count and latency, with credential patterns redacted. If Snowflake is unavailable it falls back to `logs/feedback.jsonl` (gitignored).
 
-## Demo script
+## Stopping and restarting (idle cost)
 
-The current, timed interview script is in [interview/demo_script.md](interview/demo_script.md), with Q&A in [interview/technical_qa.md](interview/technical_qa.md) and the fallback plan in [interview/backup_plan.md](interview/backup_plan.md). (The Phase 7 draft that was here has been replaced.)
+While idle, only the two Cortex Search services cost money (serving is billed per GB-month). The warehouse auto-suspends after 60 s.
+
+- **Stop:** `.venv\Scripts\python scripts\run_sql_file.py sql\90_ops\01_suspend_when_idle.sql`, then `docker compose --env-file .env -f n8n/docker-compose.yml stop`.
+- **Start:** `.venv\Scripts\python scripts\run_sql_file.py sql\90_ops\02_resume_for_demo.sql`, then start n8n, the callback API and Streamlit as in the README. In a test on 2026-11-27, both services answered within 2 s of resuming.
 
 ## Tests
 
