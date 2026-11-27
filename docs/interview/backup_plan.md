@@ -1,18 +1,35 @@
 # Backup plan and pre-demo checklist
 
+## Between sessions: stop idle spend
+The only Snowflake objects that cost money while nobody is using them are the two Cortex Search services, which are billed per GB-month while they're serving. The warehouse auto-suspends after 60 seconds. The agent, the semantic view and the tables have no idle compute, only a few MB of storage. The daily audit-anchor task is serverless and takes seconds a day, so it's left running to keep the anchors continuous. Local processes (Streamlit, n8n, the callback API) cost nothing in Snowflake.
+
+**Turn off** (from the project root):
+```powershell
+.venv\Scripts\python scripts\run_sql_file.py sql\90_ops\01_suspend_when_idle.sql
+docker compose --env-file .env -f n8n/docker-compose.yml stop
+```
+Then press Ctrl+C in the Streamlit and callback-API terminals.
+
+**Turn back on:** step 0 below. It was tested on 2026-11-27: after a resume, both services answered searches within 2 seconds.
+
 ## Pre-demo checklist (morning of 2026-12-08)
+0. **Resume search, ideally the day before:**
+   ```powershell
+   .venv\Scripts\python scripts\run_sql_file.py sql\90_ops\02_resume_for_demo.sql
+   ```
+   Both services should show `serving_state = ACTIVE`. The warehouse needs no command, because it resumes on the first query.
 1. **One app server only.** Close every old terminal running Streamlit, then start a single server:
    ```powershell
    .venv\Scripts\streamlit run app\streamlit_app.py
    ```
    It must be on **http://localhost:8501**. If it reports another port, an old server is still running. On 2026-11-26 a stale server from before a code change was still holding port 8501, serving the old UI.
 2. **Snowflake is up:** the app bar shows **● Live** (not "⚠️ Offline") and the KPI cards show 65,752 / 57.3% / 3.50 days / 3.
-3. **The search service is serving:** in Snowsight, `SHOW CORTEX SEARCH SERVICES IN SCHEMA SCC_DB.AI;` should show `serving_state = ACTIVE`. If it's suspended, run `ALTER CORTEX SEARCH SERVICE SCC_DB.AI.SUPPLIER_DOCS_SEARCH RESUME SERVING;` and allow a few minutes.
+3. **The search services are serving:** in Snowsight, `SHOW CORTEX SEARCH SERVICES IN SCHEMA SCC_DB.AI;` should show `serving_state = ACTIVE` for both services. If either is suspended, run step 0. If a search returns HTTP 429, wait a minute and try again.
 4. **Warm the cache in the same browser tab you'll present from:** click each of the three welcome cards once. The cache is per browser session, so refreshing the tab clears it. During the demo the answers return instantly, labelled "Reused from earlier in this session". If asked, say so honestly: *"I pre-ran these to save time; 'Ask again live' re-runs it."*
 5. **Optional, for the Incidents tab:** run `docker compose --env-file .env -f n8n/docker-compose.yml up -d`, then `.venv\Scripts\python -m supplychain_copilot.incidents.api` in a second terminal.
 6. **Have open in other tabs:** the README on GitHub (diagram), this file, and `docs/images/` (screenshots).
 7. **Credits:** the Snowsight balance and the account budget (50 credits a month). The demo uses roughly 0.5 credits. **Check AI credits specifically:** on 2026-11-27 the trial's included AI credits ran out mid-evaluation (HTTP 403, code 399588), and every Cortex call failed while warehouse SQL still worked. The app now says so plainly ("this Snowflake account has used its AI credit allowance"). If it appears on the day, switch to the screenshots and the saved evaluation reports.
-8. **Trial ends about 2026-12-25.** No action needed before the interview.
+8. **The account is on on-demand billing** (upgraded from the trial on 2026-11-27). The remaining free balance is used first; usage beyond it is billed to the card on file.
 
 ## Verified outputs (queried directly in Snowflake, 2026-11-26)
 These are the numbers the demo questions should produce. If the live agent is unavailable, show these together with the SQL.
