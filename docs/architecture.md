@@ -65,7 +65,7 @@ flowchart LR
 
 ## How a question flows
 
-1. **The user asks** in Streamlit. The app calls the Cortex Agent over REST as the dedicated runtime user `SCC_APP_SVC`, which holds only `SCC_APP_ROLE` with secondary roles disabled. The response streams back.
+1. **The user asks** in Streamlit. The app calls the Cortex Agent over REST as the dedicated runtime user `SCC_APP_SVC`, which uses only `SCC_APP_ROLE` with secondary roles disabled (its two search-only document-tier roles are used only by the access probes, ADR-029). The response streams back.
 2. **The agent routes** by the kind of evidence needed:
    - numbers go to **`delivery_analytics`** (Cortex Analyst, which writes SQL against the semantic view)
    - procedures and disclosures go to **`supplier_documents`** (Cortex Search)

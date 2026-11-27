@@ -136,3 +136,15 @@ def test_denial_with_dont_is_not_a_causal_claim():
     for text, expected in ((denial, []), (curly, []), (claim, None)):
         found = checks.causal_claims(AgentAnswer(question="q", text=text, status="completed"))
         assert (found == []) if expected == [] else found, text
+
+
+def test_ab_variant_differs_from_production_only_in_name_and_model():
+    from supplychain_copilot.evaluation import ab_variant
+
+    prod = redteam.AGENT_SQL.read_text(encoding="utf-8")
+    ddl = ab_variant.variant_ddl(prod)
+    assert f"orchestration: {ab_variant.VARIANT_MODEL}\n" in ddl
+    back = ddl.replace(
+        f"AGENT {ab_variant.VARIANT_AGENT}\n", "AGENT SUPPLY_CHAIN_COPILOT\n"
+    ).replace(f"  orchestration: {ab_variant.VARIANT_MODEL}\n", "  orchestration: auto\n")
+    assert back in prod

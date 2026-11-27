@@ -24,20 +24,20 @@ This is a consolidated list from Phases 0–10, so the work can be picked up lat
 
 | # | Item | Why | Effort | Source |
 |---|---|---|---|---|
-| 1 | ~~Shorter answers~~ **done 2026-11-26** (p95 32 → 25 s). Still open: A/B test pinning `claude-sonnet-5-5` for orchestration | Total latency is still 13–25 s. Any model change needs a full eval re-run (about 3 credits). | S | Phase 7b, ADR-023, ADR-025 |
+| 1 | ~~Shorter answers~~ **done 2026-11-26** (p95 32 → 25 s). Still open: see #14 (model A/B) | Total latency is still 13–25 s. Any model change needs a full eval re-run (about 3 credits). | S | Phase 7b, ADR-023, ADR-025 |
 | 2 | ~~More semantic-view metrics and dimensions~~ **done 2026-11-26**: margin, discount, order value, customers, week, weekday | Missing metrics push the agent toward its own arithmetic or raw SQL | — | Phase 8, ADR-025 |
-| 3 | Multi-turn evaluation (follow-ups, context drift) | Not covered by the 34 single-turn cases | M | Phase 8 |
+| 3 | ~~Multi-turn evaluation~~ **done 2026-11-26**: 6 conversations, 12 of 12 turns (`docs/multiturn_report.md`). Still open: 5+ turn conversations and the 3-pair history limit. | Was not covered by the single-turn cases | — | Phase 8 |
 | 4 | ~~Red-team document injection~~ **done 2026-11-26**: 7 attacks in a sandbox corpus; 6/6 resisted, poisoning rejected (`docs/redteam_findings.md`). Still open: adaptive/multi-turn attacks, other languages, many planted passages at once. | Was instruction-based and untested | — | Phases 6, 8, ADR-026 |
 | 5 | Independent labelling or a second reviewer for the eval sets; repeat runs to measure variance | Labels are developer-written; runs are single samples | M | Phases 5, 8 |
 | 6 | Optional LLM-as-judge groundedness score as a second signal | Phrase checks can miss correct wording (S7 run 1) | M | ADR-024 |
 | 7 | ~~Budget for Cortex spend~~ **done 2026-11-26**: account budget, 50 credits/month, email alerts (alerts only, forecast-based) | Resource monitors cover warehouses only | — | ADR-005, ADR-025 |
 | 8 | Host the UI (SiS container runtime or an internal host with SSO) | Local single-user app; the Agents API isn't supported on SiS warehouse runtime | L | ADR-002, ADR-022 |
-| 9 | Per-user document access (separate search services or policy inheritance) | Cortex Search uses owner's rights; ACCESS_GROUP isn't a security boundary | M | ADR-009 |
+| 9 | ~~Per-user document access~~ **done 2026-11-26**: two tier roles, a 10-K-only public service, 7 of 7 RBAC probes (public tier denied the supplier corpus; a client filter shown not to be a boundary). Still open: routing chat users to a per-tier agent (needs SSO, #8); policy inheritance untested. | Cortex Search uses owner's rights; ACCESS_GROUP isn't a security boundary | — | ADR-009, ADR-029 |
 | 10 | ~~Revoke CORTEX_USER and USE AI FUNCTIONS from PUBLIC~~ **done 2026-11-26**; verified with `SHOW GRANTS` and eval run 4 | Was granted to PUBLIC by default | — | Phase 0, ADR-025 |
 | 11 | Orchestrated pipeline (Tasks or dbt) instead of a command sequence | Fine for a static source; production needs scheduling and lineage | M | Phase 2 |
-| 13 | Anchor the incident audit-chain head outside the owner role (for example a periodic export of the latest hash to a separate account or WORM storage) | Hash v2 detects edits by anyone who doesn't recompute the chain; the owner role could recompute it | S | Phase 10 audit |
-| 14 | A/B the orchestration model (`auto` vs `claude-sonnet-5-5`) on the 37-case suite | Latency is still p95 about 25 s | S | Phase 10 |
 | 12 | ~~n8n supplier-incident workflow~~ **done 2026-11-26 (Phase 9)**: human approval, separation of duties, hash-chained append-only audit log (`docs/incident_workflow.md`). Still open: SSO identities, a live Reject/Timeout run. | Original "Feature F" | — | Project brief, ADR-027 |
+| 13 | Anchor the incident audit-chain head outside the owner role (for example a periodic export of the latest hash to a separate account or WORM storage) | Hash v2 detects edits by anyone who doesn't recompute the chain; the owner role could recompute it | S | Phase 10 audit |
+| 14 | ~~A/B the orchestration model~~ **done 2026-11-26**: claude-sonnet-5-5 was 35–40% faster but passed 25/37 (11 semantic-view bypasses, all denied); `auto` kept (ADR-028) | Latency stays p95 about 25 s; re-test new models with `runner --variant` | — | Phase 10 |
 
 ## Known limitations (accepted; mention honestly in the interview)
 

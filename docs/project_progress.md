@@ -2,6 +2,16 @@
 
 **Interview:** 2026-12-08 · **Current phase:** 10, Final validation and interview preparation · **Status:** ✅ Phases 0–10 complete (2026-11-26). Interview materials: `docs/interview/`.
 
+## Backlog pass 3: model A/B, multi-turn, document tiers (2026-11-26)
+| Item | Evidence |
+|---|---|
+| #14 model A/B | A sandbox agent identical to production except the model (tested). claude-sonnet-5-5 scored 25/37, against 37/37 for the current model: 11 semantic-view bypasses, all denied by least privilege. p95 latency 15.1 s against 24.9 s. Kept `auto` (ADR-028). The sandbox agent and its grants were removed. |
+| Fix found by the A/B | A model safety refusal (X3) was shown as a permission error. `classify_error` now handles both the plain and the streamed path, with tests. |
+| #3 multi-turn | `evaluation/multiturn.py` and `eval/multiturn_set.json`: 6 conversations, 12 of 12 turns, using the app's 3-pair history (`docs/multiturn_report.md`) |
+| #9 document tiers | `SCC_DOCS_PUBLIC_ROLE` and `SCC_DOCS_SUPPLIER_ROLE` (ACCOUNTADMIN script), plus `PUBLIC_DISCLOSURES_SEARCH` (10-K only). `evaluation/doc_tiers.py` passed 7 of 7 probes (ADR-029). |
+| Tests | 169 CI tests pass; Ruff clean |
+| Cost | 37 + 12 agent calls (A/B and multi-turn), one small index, 7 search queries |
+
 ## Phase 10: final validation, documentation and interview preparation (2026-11-26)
 
 ### Validation (all run on 2026-11-26)

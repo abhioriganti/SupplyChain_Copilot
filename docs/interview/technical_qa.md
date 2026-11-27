@@ -71,11 +71,16 @@ Layered, because no single control is enough:
 
 ### 8. How would you implement document-level permissions?
 - **The key fact:** Cortex Search runs with the *owner's* rights. A filter the client sends (such as `ACCESS_GROUP`) is a convenience, **not** a security boundary (ADR-009).
-- **So, by enforcement:**
-  - one search service per sensitivity tier (public, supplier-confidential, internal)
-  - each granted to the matching role
-  - the agent per role, or a routing layer, only sees the services that role may use
-- Alternatively, policy inheritance if its coverage of the agent's query path is confirmed. I'd test it the way I tested the semantic-view bypass, with a probe that *should* be denied.
+- **What I built (ADR-029):**
+  - two tier roles
+  - a public service whose index contains only the 10-K
+  - the supplier service granted only to the supplier tier
+- **Proven with 7 probes as the real runtime user:**
+  - the public role is **denied** the supplier service
+  - asking the public service a supplier-manual question returns only 10-K passages
+  - the same caller turning a `DOCUMENT_TYPE` filter off gets everything back, which shows a filter is not a boundary
+- **Next step:** an agent per tier, or a router that picks the agent from the signed-in user's role. That needs SSO.
+- Alternatively, policy inheritance if its coverage of the agent's query path is confirmed. I'd test it the same way, with a probe that *should* be denied.
 
 ### 9. How would you handle data freshness?
 - **Today** the sources are static, so it's a scripted load with lineage per load (ADR: orchestrated pipeline deferred).

@@ -244,6 +244,25 @@ def parse_response(question: str, resp: dict[str, Any], latency_s: float = 0.0) 
     )
 
 
+_REFUSAL = ("refused to process this request", "content safety")
+
+
+def classify_error(status: int | None, body: str) -> str:
+    """Map an agent error to a user-facing reason. One function for both the plain and streamed paths.
+
+    A model safety refusal is checked first: it arrives as HTTP 400 and, before this existed, was shown
+    as a permission problem (found by the Phase 10 model A/B, case X3)."""
+    low = (body or "").lower()
+    if any(s in low for s in _REFUSAL):
+        return "refused"
+    reason = {401: "auth", 403: "permission", 429: "rate_limited"}.get(status or 0, "service")
+    # 399504 is a general Cortex error code (the safety refusal above carries it too), so it alone
+    # is not evidence of a permission problem; "not accessible" is.
+    if status != 429 and "not accessible" in low:
+        reason = "permission"
+    return reason
+
+
 def fallback(question: str, reason: str, detail: str, latency_s: float = 0.0) -> AgentAnswer:
     messages = {
         "invalid": detail,
@@ -253,6 +272,8 @@ def fallback(question: str, reason: str, detail: str, latency_s: float = 0.0) ->
         "timeout": "The request took too long and was stopped. Try a narrower question.",
         "service": "The assistant hit a service error. Please try again; if it persists, check Snowflake status.",
         "empty": "The assistant returned no answer for this question. Try rephrasing it.",
+        "refused": "The assistant declined this request. It can't run commands, change data or share "
+        "its configuration. Ask about delivery metrics or supplier procedures instead.",
     }
     return AgentAnswer(
         question=question,
@@ -304,11 +325,7 @@ class CopilotAgent:
                 if exc.status in RETRYABLE_STATUS and attempt < self._max_retries:
                     time.sleep(self._backoff_s * (2**attempt))
                     continue
-                reason = {401: "auth", 403: "permission", 429: "rate_limited"}.get(
-                    exc.status, "service"
-                )
-                if "399504" in exc.body or "not accessible" in exc.body.lower():
-                    reason = "permission" if exc.status != 429 else reason
+                reason = classify_error(exc.status, exc.body)
                 return fallback(q, reason, f"HTTP {exc.status}: {exc.body[:300]}", elapsed)
             except requests.Timeout:
                 return fallback(q, "timeout", "client timeout", time.perf_counter() - start)
@@ -364,9 +381,10 @@ class CopilotAgent:
                         yield AgentEvent("text", text=data["text"])
                     elif event == "error":
                         detail = f"{data.get('code', '')}: {data.get('message', '')}"
+                        reason = classify_error(None, detail)
                         yield AgentEvent(
                             "final",
-                            answer=fallback(q, "service", detail, time.perf_counter() - start),
+                            answer=fallback(q, reason, detail, time.perf_counter() - start),
                         )
                         return
                     elif event == "response":
@@ -392,9 +410,7 @@ class CopilotAgent:
                 ):
                     time.sleep(self._backoff_s * (2**attempt))
                     continue
-                reason = {401: "auth", 403: "permission", 429: "rate_limited"}.get(
-                    exc.status, "service"
-                )
+                reason = classify_error(exc.status, exc.body)
                 yield AgentEvent(
                     "final",
                     answer=fallback(

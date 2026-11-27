@@ -207,3 +207,21 @@ def test_agent_cases_pass():
         if not r.passed
     ]
     assert failed == []
+
+
+def test_model_safety_refusal_is_not_shown_as_a_permission_problem():
+    """Phase 10 model A/B (case X3): an HTTP 400 content-safety refusal was shown as 'role doesn't
+    have access'. Both the plain and the streamed path now use classify_error."""
+    from supplychain_copilot.agent.client import classify_error, fallback
+
+    refusal = '{"message": "The AI model refused to process this request due to its content safety policies.", "code": "399504"}'
+    assert classify_error(400, refusal) == "refused"
+    assert classify_error(None, "399504: The AI model refused to process this request") == "refused"
+    assert (
+        classify_error(400, '{"code": "399504", "message": "tool not accessible"}') == "permission"
+    )
+    assert classify_error(400, '{"code": "399504", "message": "Error"}') == "service"
+    assert classify_error(429, "rate limited") == "rate_limited"
+    assert classify_error(500, "boom") == "service"
+    msg = fallback("q", "refused", "x").text
+    assert "declined" in msg and "access" not in msg

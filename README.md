@@ -113,12 +113,15 @@ Details: [docs/agent_architecture.md](docs/agent_architecture.md)
 | Privilege probes (runtime role) | 13 of 13 as expected |
 | Red-team (retrieved-document injection) | 6 of 6 resisted; poisoning case rejected |
 | Retrieval | hit@1 96.7%, hit@5 100%, MRR 0.983 |
-| Automated tests | 163 unit, UI and logic tests (CI) + 14 live Snowflake tests |
+| Model A/B (orchestration) | Current model 37/37; claude-sonnet-5-5 25/37 with 11 semantic-view bypasses (all denied), so the current model is kept (ADR-028) |
+| Multi-turn conversations | 6 of 6 conversations, 12 of 12 turns (follow-ups, pronouns, topic switch, late injection) |
+| Document-tier access probes | 7 of 7: public tier denied the supplier corpus; a client filter shown not to be a boundary (ADR-029) |
+| Automated tests | 169 unit, UI and logic tests (CI) + 14 live Snowflake tests |
 
 The full review, including what the evaluation **does not** establish, is in [docs/evaluation_findings.md](docs/evaluation_findings.md).
 
 ## 11. Security
-- **Least-privilege runtime identity.** The dedicated user `SCC_APP_SVC` holds only `SCC_APP_ROLE`, with secondary roles disabled. The role:
+- **Least-privilege runtime identity.** The dedicated user `SCC_APP_SVC` uses `SCC_APP_ROLE`, with secondary roles disabled (it also holds the two search-only document-tier roles used by the access probes). The role:
   - **cannot read** Bronze, Silver or Gold tables
   - **cannot modify** any business data
   - can only use the semantic view, the search service and the agent
@@ -127,6 +130,7 @@ The full review, including what the evaluation **does not** establish, is in [do
   A secondary-roles privilege leak was found and fixed in Phase 6 (ADR-021).
 - **Defence in depth.** Even if a prompt got the agent to attempt destructive SQL, the role would be denied. The red-team tried this (R4).
 - **Secrets.** Key-pair auth, with private keys outside the repo. `.env` is gitignored. The CI secret scan covers private keys, JWTs, credential assignments, GitHub and Slack tokens, and Slack webhooks. A full-history scan (all commits) found no real secrets.
+- **Document tiers.** Cortex Search runs with owner's rights, so access is enforced by USAGE on separate services per tier, not by filters. A public-tier role can query only a 10-K-only service, and 7 probes confirm the denials (ADR-029). The tier roles are also granted to the runtime user so the probes can run as it; they reach no tables and no corpus beyond what the app role already reaches.
 - **Cortex access** is granted explicitly and revoked from PUBLIC. An account budget alerts on spend, and the warehouse has a 25-credit resource monitor.
 - **Audit:** append-only incident log, SHA-256 chained over who, what, when and order, and verified in SQL. Tampering with an approver flips the check to FALSE.
 
@@ -180,7 +184,7 @@ $env:SCC_RUN_SNOWFLAKE_TESTS="1"; .venv\Scripts\pytest -m snowflake     # live, 
 - **Cost:** this is a trial account. Budgets alert but don't stop spend.
 
 ## 15. Future improvements
-SSO and hosted deployment; per-user document access through separate search services or policy inheritance; multi-turn and independently labelled evaluation; an A/B test of a faster orchestration model; Snowflake Tasks or dbt for scheduled refresh; anchoring the audit chain outside the owner role; and connectors for enterprise sources such as ERP and document stores. The full list, with the reason for each, is in [docs/backlog.md](docs/backlog.md).
+SSO and hosted deployment; routing signed-in users to a per-tier agent (the tier enforcement itself is built); longer multi-turn and independently labelled evaluation; re-testing newer fast orchestration models; Snowflake Tasks or dbt for scheduled refresh; anchoring the audit chain outside the owner role; and connectors for enterprise sources such as ERP and document stores. The full list, with the reason for each, is in [docs/backlog.md](docs/backlog.md).
 
 ---
 *Built as an independent portfolio project for an interview. All data is public; no Worthington systems, credentials or internal information were used.*

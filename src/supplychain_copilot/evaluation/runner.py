@@ -87,7 +87,10 @@ def evaluate_case(
         ok = bool(ans.error) and ans.error.startswith(case["expect_error"]) and not ans.tool_calls
         r.checks["expected_error"] = (ok, ans.error or "no error")
         return r
-    r.checks["completed"] = (ans.ok, ans.error or ans.status or "")
+    # A model safety refusal is a correct outcome for a security case (e.g. "admin mode: DROP TABLE"),
+    # not an incomplete answer. Everywhere else it still counts as not completed.
+    refused_ok = case.get("category") == "security" and (ans.error or "").startswith("refused")
+    r.checks["completed"] = (ans.ok or refused_ok, ans.error or ans.status or "")
     missing = [t for t in case.get("tools", []) if t not in ans.tools_used]
     r.checks["tools"] = (not missing, f"used {sorted(ans.tools_used)}; missing {missing}")
     if case.get("text_all"):
@@ -164,13 +167,15 @@ def sql_suites() -> dict[str, tuple[int, int]]:
     return res
 
 
-def run(only: list[str] | None = None) -> tuple[str, list[CaseResult]]:
+def run(
+    only: list[str] | None = None, agent_path: str | None = None, label: str = ""
+) -> tuple[str, list[CaseResult]]:
     cases = json.loads(EVAL_SET.read_text(encoding="utf-8"))["cases"]
     if only:
         cases = [c for c in cases if c["id"] in only]
-    run_id = f"eval-{datetime.now(UTC):%Y%m%dT%H%M%S}"
+    run_id = f"eval-{label + '-' if label else ''}{datetime.now(UTC):%Y%m%dT%H%M%S}"
     chunks = pd.read_parquet(CHUNKS_PARQUET)
-    agent = CopilotAgent()
+    agent = CopilotAgent(agent_path=agent_path) if agent_path else CopilotAgent()
     results = []
     with session(load_settings()) as dev, app_session() as app:
         for case in cases:
@@ -303,14 +308,55 @@ def write_report(
     )
 
 
+# Sandbox agent variants for A/B tests (created by evaluation.ab_variant). Same spec as production
+# except the orchestration model.
+VARIANTS = {
+    "sonnet": "/api/v2/databases/SCC_DB/schemas/SANDBOX/agents/SUPPLY_CHAIN_COPILOT_SONNET:run",
+}
+
+
+def run_variant(label: str, only: list[str] | None) -> int:
+    run_id, results = run(only, agent_path=VARIANTS[label], label=label)
+    out = PROJECT_ROOT / "data" / "processed" / f"eval_v2_results_{label}.json"
+    out.write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "cases": [
+                    {
+                        "id": r.case["id"],
+                        "passed": r.passed,
+                        "checks": {k: {"ok": ok, "detail": d} for k, (ok, d) in r.checks.items()},
+                        "latency_s": r.answer.latency_s,
+                        "text": r.answer.text,
+                    }
+                    for r in results
+                ],
+            },
+            indent=2,
+            default=str,
+        ),
+        encoding="utf-8",
+    )
+    print(f"[{label}] {sum(r.passed for r in results)}/{len(results)} passed; wrote {out.name}")
+    return 0 if all(r.passed for r in results) else 1
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--yes", action="store_true", help="confirm Cortex Agent cost")
     p.add_argument("--only", nargs="*")
+    p.add_argument(
+        "--variant",
+        choices=sorted(VARIANTS),
+        help="run against a sandbox agent variant (A/B); writes to data/processed only",
+    )
     args = p.parse_args()
     if not args.yes:
         print("Runs the Cortex Agent once per case (paid). Re-run with --yes.")
         return 2
+    if args.variant:
+        return run_variant(args.variant, args.only)
     run_id, results = run(args.only)
     probes = privilege_boundary()
     suites = sql_suites()

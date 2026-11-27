@@ -403,3 +403,91 @@ def test_run4_wording_regressions():
     assert checks.missing_groups(h1, [cases["H1"]["text_all"][0]]) == []
     # still strict: a wrong deadline is not accepted
     assert checks.missing_groups("corrective actions within 10 days", [cases["H1"]["text_all"][0]])
+
+
+def test_multiturn_set_and_history_match_the_app():
+    import re
+
+    from supplychain_copilot.agent.client import AgentAnswer
+    from supplychain_copilot.evaluation import multiturn
+
+    convs = multiturn.load()
+    assert len(convs) == 6 and all(len(c["turns"]) >= 2 for c in convs)
+    for c in convs:
+        for t in c["turns"]:
+            assert not t.get("truth_sql") or t["truth_sql"].upper().startswith("SELECT")
+            for pat in t.get("text_none", []):
+                re.compile(pat)
+                assert not re.search(r"[\x00-\x1f]", pat)
+    ok = AgentAnswer(question="q", text="answer", status="completed")
+    err = AgentAnswer(question="q", text="busy", status="error", error="rate_limited: x")
+    h = multiturn.next_history([], "q1", ok)
+    assert h == [
+        {"role": "user", "content": [{"type": "text", "text": "q1"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "answer"}]},
+    ]
+    assert multiturn.next_history(h, "q2", err) == h  # errors are not added, as in the app
+    for i in range(5):
+        h = multiturn.next_history(h, f"q{i}", ok)
+    assert len(h) == 2 * multiturn.HISTORY_TURNS
+
+
+def test_safety_refusal_counts_as_completed_only_for_security_cases():
+    from supplychain_copilot.agent.client import fallback
+    from supplychain_copilot.evaluation.runner import evaluate_case
+
+    ans = fallback("q", "refused", "HTTP 400: refused to process this request")
+    sec = evaluate_case({"id": "X3", "category": "security"}, ans, None, None, None)
+    other = evaluate_case({"id": "S1", "category": "structured"}, ans, None, None, None)
+    assert sec.checks["completed"][0] is True and other.checks["completed"][0] is False
+
+
+def test_document_tier_probes_and_grants_are_consistent():
+    """Backlog #9 / ADR-029: the public tier must never be granted the supplier corpus, and the probes
+    judge denial, public-only and supplier visibility correctly."""
+    import re
+
+    from supplychain_copilot.config import PROJECT_ROOT
+    from supplychain_copilot.evaluation import doc_tiers as dt
+
+    sql = (PROJECT_ROOT / "sql" / "60_search" / "02_document_tiers.sql").read_text(encoding="utf-8")
+    grants = [
+        line
+        for line in sql.splitlines()
+        if re.match(r"\s*GRANT USAGE ON CORTEX SEARCH SERVICE", line, re.I)
+    ]
+    assert any("PUBLIC_DISCLOSURES_SEARCH" in g and dt.PUBLIC_ROLE in g for g in grants)
+    assert not any("SUPPLIER_DOCS_SEARCH" in g and dt.PUBLIC_ROLE in g for g in grants)
+    assert "WHERE DOCUMENT_TYPE = 'annual_report_10k'" in sql
+    assert dt.APP_ROLE not in " ".join(grants)  # runtime role is not widened
+
+    assert dt.judge("denied", "denied", set())
+    assert not dt.judge("denied", "ok", {"annual_report_10k"})
+    assert dt.judge("public_only", "ok", {"annual_report_10k"})
+    assert not dt.judge("public_only", "ok", {"annual_report_10k", "supplier_quality_manual"})
+    assert not dt.judge("public_only", "ok", set())  # an empty answer proves nothing
+    assert dt.judge("includes_supplier", "ok", {"supplier_quality_manual"})
+    assert not dt.judge("includes_supplier", "denied", set())
+    assert {p.expect for p in dt.PROBES} == {"denied", "public_only", "includes_supplier"}
+
+
+def test_document_tier_probe_maps_http_errors_to_denied():
+    from supplychain_copilot.evaluation import doc_tiers as dt
+    from supplychain_copilot.snowflake.rest import SnowflakeRestError
+
+    class Fake:
+        def __init__(self, out):
+            self.out = out
+
+        def post(self, path, body):
+            if isinstance(self.out, Exception):
+                raise self.out
+            return self.out
+
+    denied = dt.run_probe(dt.PROBES[0], {dt.PUBLIC_ROLE: Fake(SnowflakeRestError(404, "no"))})
+    assert denied["passed"] and denied["status"] == "denied"
+    leak = dt.run_probe(
+        dt.PROBES[1],
+        {dt.PUBLIC_ROLE: Fake({"results": [{"DOCUMENT_TYPE": "supplier_quality_manual"}]})},
+    )
+    assert not leak["passed"]

@@ -389,3 +389,55 @@ Totals vary run to run on the service side.
   - *Slack "send and wait" approval in the chat.* The approver identity would come from the Slack account, so separation of duties would need rework and re-testing.
   - *Email.* It needs SMTP credentials.
 - **Evidence:** a live run with a message, an approval from its link and an intact chain.
+
+## ADR-028: Keep `orchestration: auto` (claude-opus-5-5); a faster model failed governance
+**Status:** Accepted (2026-11-26, backlog #14)
+**Context:** latency (p95 about 25 s) was the most visible weakness. The obvious fix is a faster orchestration model.
+**Experiment:**
+- A sandbox agent generated from the production spec with only `models: orchestration` changed to `claude-sonnet-5-5`. A test proves the spec is otherwise identical.
+- The full 37-case evaluation, as the same least-privilege runtime user.
+
+| | auto → claude-opus-5-5 (run 5) | claude-sonnet-5-5 |
+|---|---|---|
+| Passed | **37 / 37** | 25 / 37 |
+| p50 / p95 latency | 13.7 / 24.9 s | **9.0 / 15.1 s** |
+| Avg output tokens | 890 | 648 |
+| SQL that bypassed the semantic view | 0 | **11 cases** (all denied by the runtime role) |
+| Safety checks (leak, write SQL, causal claim, data unchanged) | all pass | all pass |
+
+**Decision:** keep `auto`. Being 35–40% faster doesn't justify failing to answer about one question in three. The failure mode matters too: under Sonnet, Cortex Analyst frequently produced raw-table SQL (`WITH __orders AS …`) instead of `SEMANTIC_VIEW(...)`. Least privilege blocked every one, so no wrong number was shown, but the user got "not available" instead of an answer.
+**What the experiment also showed:**
+- Defence in depth works under a different model: zero safety failures.
+- A client bug: a model safety refusal (HTTP 400, case X3) was shown as a permission error. `agent.client.classify_error` now handles it for both the plain and the streamed path, with tests.
+
+**Revisit when:** a newer fast model is available. The harness (`evaluation.ab_variant` plus `runner --variant`) makes re-testing one command.
+
+
+## ADR-029: Document tiers enforced by RBAC on separate search services, proven by denial probes
+**Status:** Accepted (2026-11-26, backlog #9; implements the production path of ADR-009)
+**Context:** Cortex Search runs with the owner's rights, so a client `filter` on `ACCESS_GROUP` can simply be omitted by any caller that holds USAGE on the service. Per-user document access therefore can't rest on filters.
+**Decision:**
+- Two document tiers, each a role:
+  - `SCC_DOCS_PUBLIC_ROLE` gets USAGE on `PUBLIC_DISCLOSURES_SEARCH` only. That service is built over `DOCUMENT_TYPE = 'annual_report_10k'`, so supplier manuals are **not in its index at all**.
+  - `SCC_DOCS_SUPPLIER_ROLE` gets USAGE on both `PUBLIC_DISCLOSURES_SEARCH` and `SUPPLIER_DOCS_SEARCH`.
+- The roles are created by ACCOUNTADMIN (`sql/00_setup/04_document_tier_roles.sql`). Services and grants are owned by the dev role (`sql/60_search/02_document_tiers.sql`).
+- Both roles are granted to `SCC_APP_SVC` so the probes can run as the real runtime user. `DEFAULT_SECONDARY_ROLES = ()` means only the role named in the request header is active. Neither tier role can read tables or reach the agent, and both together add no corpus beyond what `SCC_APP_ROLE` already reaches.
+- `SCC_APP_ROLE` (the chat) is unchanged and is **not** granted the public-tier service.
+
+**Evidence:** `evaluation/doc_tiers.py`, 7 of 7 probes (`data/processed/doc_tier_results.json`).
+
+| Probe | Role → service | Result |
+|---|---|---|
+| T1 | public → supplier service | **denied** (HTTP 404, "does not exist or access is not authorized") |
+| T2 | public → public service, asking a supplier-manual question | 10 rows, all `annual_report_10k` |
+| T3 | supplier → supplier service | supplier-manual passages |
+| T4 | supplier → public service | 10-K only (superset access works) |
+| T5 / T6 | supplier → supplier service, with then without a `DOCUMENT_TYPE` filter | 10-K only with the filter; supplier manual without it. **The filter is the caller's choice, so it isn't a boundary.** |
+| T7 | chat runtime role → public service | **denied** (runtime role not widened) |
+
+**Not done:**
+- The chat still uses one agent over the full (all-public) corpus.
+- A per-tier agent, or a router that picks the agent from the signed-in user's role, needs SSO identities (backlog #8).
+- Policy inheritance (`INHERIT_DATA_GOVERNANCE_POLICIES`) wasn't tested.
+
+**Cost:** one extra index over 111 chunks (serving cost) and 7 search queries. No LLM tokens.
