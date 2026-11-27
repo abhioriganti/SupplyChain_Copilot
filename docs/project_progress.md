@@ -2,6 +2,16 @@
 
 **Interview:** 2026-12-08 · **Current phase:** 10, Final validation and interview preparation · **Status:** ✅ Phases 0–10 complete (2026-11-26). Interview materials: `docs/interview/`.
 
+## Backlog pass 8: LLM-as-judge groundedness (2026-11-27)
+| Item | Evidence |
+|---|---|
+| Harness | `runner --repeat` now saves each answer's question and evidence. `evaluation/judge.py` uses `openai-gpt-5.4` with a JSON schema and the agent's own instructions and metric definitions as context, and calibrates with planted wrong numbers and invented clauses. |
+| Run | `eval-judge1-20261127T014720`: 37 of 37 on the standard checks (a fourth full sample) |
+| Calibration | 27 of 27 planted errors caught (v1 and v2) |
+| Clean answers | v1: 26 of 37 flagged (it lacked the agent's context). v2: 16 of 37, which human review found to be 4 minor real wording issues (D3, H4, D4 count, U2) and 12 false alarms (including a table misread and a 40-row evidence cap, now 200) |
+| Decision | ADR-031: a triage signal for a reviewer, not a gate |
+| Cost | 37 agent calls plus 128 AI_COMPLETE calls |
+
 ## Backlog pass 7: longer conversations and the history window (2026-11-27)
 | Item | Evidence |
 |---|---|

@@ -471,3 +471,22 @@ All 8 incidents in the log were anchored and matched afterwards.
 **Alternatives considered:**
 - Anchors in another schema of `SCC_DB`: rejected, because the database owner is the role being guarded against.
 - External WORM storage: the stronger option, but it needs external access and cloud storage outside this demo.
+
+## ADR-031: LLM-as-judge as a calibrated triage signal, not a gate
+**Status:** Accepted (2026-11-27, backlog #6)
+**Context:** the phrase checks are precise but brittle: S7 (run 1) and A3 (repeat 2) were correct answers scored as failures, and they can't see paraphrase errors. A second, semantic signal was wanted.
+**Decision:**
+- **Judge.** `evaluation/judge.py` judges each answer against the evidence the agent actually received (SQL rows, retrieved passages, saved by `runner --repeat`), plus the agent's own instructions and metric definitions. That context is read from the deployed SQL, not written for the judge.
+- **Different vendor.** The judge is `openai-gpt-5.4`, a different vendor from the agent's model, to avoid grading its own family. Structured JSON output (verdict, unsupported claims, rationale) at temperature 0.
+- **Calibrated first.** Planted wrong numbers and fabricated document clauses must be caught. **27 of 27 were.**
+- **Triage, not a gate.** Flags go to a person. On clean answers the judge raised 16 flags in 37 (4 real but minor, 12 false), and it misread a flattened table. It never overrides the SQL ground-truth checks.
+
+**Alternatives considered:**
+- A same-family judge: self-preference risk.
+- A judge without evidence: it can only assess plausibility, not grounding.
+- Using it as a pass/fail gate: rejected, because of the false-alarm rate.
+
+**Revisit:**
+- Give the judge tables in their original structure instead of flattened text.
+- Plant subtler errors (wrong page, reversed comparison).
+- Measure agreement with an independent human reviewer (backlog #5).

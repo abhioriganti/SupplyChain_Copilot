@@ -116,8 +116,9 @@ Details: [docs/agent_architecture.md](docs/agent_architecture.md)
 | Model A/B (orchestration) | Current model 37/37; claude-sonnet-5-5 25/37 with 11 semantic-view bypasses (all denied), so the current model is kept (ADR-028) |
 | Multi-turn conversations | 6 two-turn conversations, 12 of 12 turns (follow-ups, pronouns, topic switch, late injection); 5- and 6-turn conversations past the 3-pair history window, plus a lost-context case: 12 of 12 after review (asks "which market?" rather than guessing) |
 | Repeat runs (variance) | 3 runs × 37 cases: governed-tool routing identical, ground truth matched every time; 36 of 37 cases passed in every run, all 108 after one evaluator correction |
+| LLM-as-judge (second signal) | Judge from a different vendor, given each answer's evidence: caught 27 of 27 planted errors; on clean answers it raised 16 flags in 37, which human review found to be 4 minor wording issues and 12 false alarms, so it triages rather than gates |
 | Document-tier access probes | 7 of 7: public tier denied the supplier corpus; a client filter shown not to be a boundary (ADR-029) |
-| Automated tests | 177 unit, UI and logic tests (CI) + 14 live Snowflake tests |
+| Automated tests | 179 unit, UI and logic tests (CI) + 14 live Snowflake tests |
 
 The full review, including what the evaluation **does not** establish, is in [docs/evaluation_findings.md](docs/evaluation_findings.md).
 

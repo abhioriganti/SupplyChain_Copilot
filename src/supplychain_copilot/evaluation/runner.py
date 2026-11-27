@@ -315,6 +315,12 @@ VARIANTS = {
 }
 
 
+def evidence_of(answer):
+    from supplychain_copilot.evaluation.judge import evidence_of as _ev
+
+    return _ev(answer)
+
+
 def run_variant(label: str, only: list[str] | None, agent_path: str | None = None) -> int:
     """Run the eval and write data/processed/eval_v2_results_{label}.json only (the report is untouched).
 
@@ -336,6 +342,9 @@ def run_variant(label: str, only: list[str] | None, agent_path: str | None = Non
                         "latency_s": round(r.answer.latency_s, 2),
                         "tools": sorted(r.answer.tools_used),
                         "text": r.answer.text,
+                        "question": r.answer.question,
+                        # what the agent actually saw, for the LLM judge (evaluation.judge)
+                        "evidence": evidence_of(r.answer),
                     }
                     for r in results
                 ],

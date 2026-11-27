@@ -220,6 +220,39 @@ Runs: run 5, `eval-repeat2-20261127T001548` and `eval-repeat3-20261127T004652`.
 - X5–X7 have 2 scored runs each.
 - The labels are still developer-written; an independent reviewer is still open.
 
+## LLM-as-judge groundedness (backlog #6, ADR-031): `docs/judge_report.md`
+**Setup:**
+- The 37 answers of `eval-judge1-20261127T014720` (37 of 37 on the standard checks) were judged by `openai-gpt-5.4`, a different vendor from the agent's model.
+- The judge saw each answer's actual evidence: SQL rows and retrieved passages.
+- It used structured output at temperature 0.
+- **Before trusting it**, I calibrated it with planted errors: 18 copies with one percentage shifted by 7.3 points, and 9 copies with a fabricated SQAM clause ("$5,000 penalty… §7.5").
+
+| | Judge v1 (no system context) | Judge v2 (with the agent's own instructions and metric definitions) |
+|---|---|---|
+| Planted wrong numbers caught | 18 / 18 | 18 / 18 |
+| Planted invented clauses caught | 9 / 9 | 9 / 9 |
+| Unmodified answers flagged | 26 / 37 | 16 / 37 |
+
+**Why v1 over-flagged:** it hadn't seen what the agent is told. Standard framing ("canceled shipments are excluded", "DataCo 2015–2018", the list of documents, the 2,000-character limit) looked unsupported. v2 reads that context from the deployed agent spec and semantic view at run time, so it isn't written for the judge.
+
+**Human review of the 16 v2 flags, each checked against the evidence or SQL:**
+
+| Outcome | Cases | Detail |
+|---|---|---|
+| Real, minor wording issues | 4 | **D3**: "no alternative supply if suppliers raise prices" overstates the 10-K, which says alternate supply *may be more difficult* if delivery is disrupted. **H4**: "pay all costs of fixing it" broadens "sorting, handling, shipping and rework costs". **D4**: "18 documents", where Appendix B has 18 numbered items plus the Bulk Material Checklist. **U2**: "last quarter (Q3 2026)" is correct but comes from the date, not the evidence. |
+| Judge false alarms | 12 | **D4** main claim: the judge misread the flattened Appendix B table (Level 4 = Warrant and checklist S, the rest \*; Level 5 = all R; the answer was right). **A3**: my 40-row evidence cap hid the row (Golf Bags & Carts 42 / 61 = 68.9% confirmed in SQL; cap now 200). **S7**: the 2017 overall monthly rate is 55.0–57.9%, as stated. **A4**: "mostly 56.3–58.7%" covers 21 of 28 market-quarters and 96.6% of shipments; every outlier has fewer than 1,000. **H1, H3, D5, H2, A1, A2, U1, X6, X7**: units shared across a list, correct sorting, synonyms, instructed framing, or generic advice inside a refusal. |
+
+**What this establishes:**
+- **Recall on planted errors is strong** (27 of 27): a changed number or an invented requirement gets flagged.
+- **On clean answers it is noisy:** 12 false alarms in 37, and it misreads flattened tables. So it's a **triage signal for a human reviewer, not a pass/fail gate**. The SQL ground-truth and reconciliation checks stay the authority for numbers.
+- **It found 4 wording issues the phrase checks can't see,** all minor paraphrase precision and none a wrong number.
+
+**Cost:** 37 agent calls (about $3–4) plus 128 judge calls (two judge versions × 64 items, a few cents each).
+**Limits:**
+- One judge model, one run, and calibration errors of two kinds.
+- Subtler errors (a wrong page number, or a reversed comparison) weren't planted.
+- The 40-row cap affected this run's saved evidence; later runs save 200 rows.
+
 ## Document-tier access probes (`evaluation/doc_tiers.py`): 7 of 7 as expected (ADR-029)
 Real Cortex Search REST queries as `SCC_APP_SVC`, switching only the role header. Each probe asks a supplier-manual question, so a leak would show.
 

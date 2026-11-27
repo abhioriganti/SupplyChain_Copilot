@@ -594,3 +594,81 @@ def test_variance_counts_flaky_consistent_and_tool_changes():
     b = analyse([run("r1", [case("A", True, ["x"], 10)]), run("r2", [quota])])
     assert b["n"] == 1 and b["trials"] == 1 and b["excluded"] == ["A in r2"]
     assert b["pass_all_k"] == 1 and b["flaky"] == []
+
+
+def test_judge_evidence_perturbations_and_scoring():
+    """Backlog #6 / ADR-031: the judge sees what the agent saw, and calibration plants real errors."""
+    from supplychain_copilot.agent.client import parse_response
+    from supplychain_copilot.evaluation import judge as j
+
+    raw = json.loads(
+        (ROOT / "tests" / "fixtures" / "agent_hybrid_response.json").read_text(encoding="utf-8")
+    )
+    ev = j.evidence_of(parse_response("q", raw))
+    assert any(e.startswith("SQL result") and "LATE_DELIVERY_RATE" in e for e in ev)
+    assert any(e.startswith("Passage from") for e in ev)
+    assert sum(e.startswith("Passage from") for e in ev) <= j.MAX_PASSAGES
+
+    assert j.perturb_number("Rate is 57.5% overall.") == "Rate is 64.8% overall."
+    assert j.perturb_number("Rate is 95.0%.") == "Rate is 87.7%."
+    assert j.perturb_number("no percentages") is None
+    t = j.perturb_clause("First sentence. Second.")
+    assert t.startswith("First sentence.") and j.FAKE_CLAUSE in t and t.endswith("Second.")
+
+    cases = [
+        {"id": "S1", "passed": True, "text": "It is 56.9%.", "evidence": ["SQL result\n..."]},
+        {
+            "id": "D1",
+            "passed": True,
+            "text": "Within 14 days. Ok.",
+            "evidence": ["Passage from X:\n..."],
+        },
+        {"id": "X1", "passed": True, "text": "I can't help with that.", "evidence": []},
+        {"id": "F1", "passed": False, "text": "failed", "evidence": []},
+    ]
+    items = j.calibration_items(cases)
+    assert [(i["id"], i["variant"]) for i in items] == [
+        ("S1", "original"),
+        ("S1", "wrong_number"),
+        ("D1", "original"),
+        ("D1", "invented_clause"),
+        ("X1", "original"),
+    ]
+    verdict = {"original": "grounded", "wrong_number": "ungrounded", "invented_clause": "grounded"}
+    for i in items:
+        i["judge"] = {"verdict": verdict[i["variant"]], "unsupported_claims": []}
+    s = j.summarise(items)
+    assert s["by_variant"] == {"wrong_number": (1, 1), "invented_clause": (0, 1)}
+    assert s["originals_flagged"] == [] and "D1 (invented_clause)" in j.render("x", s, items)
+
+    def no_forbidden(node):
+        bad = {"minimum", "maximum", "minLength", "maxLength", "minItems", "maxItems", "format"}
+        if isinstance(node, dict):
+            assert not bad & node.keys()
+            if node.get("type") == "object":
+                assert node.get("additionalProperties") is False and set(node["required"]) == set(
+                    node["properties"]
+                )
+            for v in node.values():
+                no_forbidden(v)
+        elif isinstance(node, list):
+            for v in node:
+                no_forbidden(v)
+
+    no_forbidden(j.SCHEMA)
+    assert j.JUDGE_MODEL.startswith("openai-")  # a different vendor from the agent's model
+
+
+def test_judge_context_comes_from_deployed_definitions():
+    """ADR-031: v2 context is the agent's own instructions and metric definitions, not judge-specific."""
+    from supplychain_copilot.evaluation import judge as j
+
+    ctx = j.system_context()
+    assert "Ground every statement in tool results" in ctx  # agent response instructions
+    assert "delivery_analytics" in ctx and "supplier_documents" in ctx  # tool descriptions
+    assert "Not Worthington data" in ctx  # semantic-view comment
+    assert "2000 characters" in ctx
+    assert "tool_resources" not in ctx and "SCC_WH" not in ctx  # deployment details excluded
+    assert j.MAX_ROWS >= 200  # v1's 40-row cap hid A3's answer row
+    p = j.build_prompt("q", [], "a", ctx)
+    assert "SYSTEM CONTEXT" in p and p.index("SYSTEM CONTEXT") < p.index("QUESTION")
