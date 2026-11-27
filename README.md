@@ -115,7 +115,7 @@ Details: [docs/agent_architecture.md](docs/agent_architecture.md)
 | Retrieval | hit@1 96.7%, hit@5 100%, MRR 0.983 |
 | Model A/B (orchestration) | Current model 37/37; claude-sonnet-5-5 25/37 with 11 semantic-view bypasses (all denied), so the current model is kept (ADR-028) |
 | Multi-turn conversations | 6 of 6 conversations, 12 of 12 turns (follow-ups, pronouns, topic switch, late injection) |
-| Repeat runs (variance) | 2 runs × 34 cases: governed-tool routing identical, ground truth matched in both, 34/34 in both after one evaluator correction |
+| Repeat runs (variance) | 3 runs × 37 cases: governed-tool routing identical, ground truth matched every time; 36 of 37 cases passed in every run, all 108 after one evaluator correction |
 | Document-tier access probes | 7 of 7: public tier denied the supplier corpus; a client filter shown not to be a boundary (ADR-029) |
 | Automated tests | 171 unit, UI and logic tests (CI) + 14 live Snowflake tests |
 
@@ -182,7 +182,7 @@ $env:SCC_RUN_SNOWFLAKE_TESTS="1"; .venv\Scripts\pytest -m snowflake     # live, 
   - latency is 13–25 s
   - names in the incident workflow are self-declared, so separation of duties compares names, not authenticated identities
   - the owner role could rewrite the hash chain; production would anchor the chain head outside it
-- **Cost:** this is a trial account. Budgets alert but don't stop spend.
+- **Cost:** a single-developer on-demand account (upgraded from a trial on 2026-11-27). Budgets alert but don't stop spend.
 
 ## 15. Future improvements
 SSO and hosted deployment; routing signed-in users to a per-tier agent (the tier enforcement itself is built); longer multi-turn and independently labelled evaluation; re-testing newer fast orchestration models; Snowflake Tasks or dbt for scheduled refresh; anchoring the audit chain outside the owner role; and connectors for enterprise sources such as ERP and document stores. The full list, with the reason for each, is in [docs/backlog.md](docs/backlog.md).

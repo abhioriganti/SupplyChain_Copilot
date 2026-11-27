@@ -561,4 +561,5 @@ def test_variance_counts_flaky_consistent_and_tool_changes():
         "detail": 'permission: HTTP 403: {"code" : "399588"}',
     }
     b = analyse([run("r1", [case("A", True, ["x"], 10)]), run("r2", [quota])])
-    assert b["n"] == 0 and b["excluded"] == ["A"]
+    assert b["n"] == 1 and b["trials"] == 1 and b["excluded"] == ["A in r2"]
+    assert b["pass_all_k"] == 1 and b["flaky"] == []

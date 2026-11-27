@@ -50,23 +50,35 @@ def infrastructure_failure(case: dict[str, Any]) -> bool:
 
 
 def analyse(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Infrastructure failures are dropped per trial, so a case keeps its valid runs."""
     present = [i for i in runs[0]["cases"] if all(i in r["cases"] for r in runs)]
-    excluded = [i for i in present if any(infrastructure_failure(r["cases"][i]) for r in runs)]
-    ids = [i for i in present if i not in excluded]
+    valid = {
+        i: [r["cases"][i] for r in runs if not infrastructure_failure(r["cases"][i])]
+        for i in present
+    }
+    excluded_trials = sorted(
+        f"{i} in {r['run_id']}"
+        for i in present
+        for r in runs
+        if infrastructure_failure(r["cases"][i])
+    )
+    ids = [i for i in present if valid[i]]
     per_run = []
     for r in runs:
-        lat = [r["cases"][i]["latency_s"] for i in ids] or [0.0]
+        ok_ids = [i for i in ids if not infrastructure_failure(r["cases"][i])]
+        lat = [r["cases"][i]["latency_s"] for i in ok_ids] or [0.0]
         per_run.append(
             {
                 "run_id": r["run_id"],
-                "passed": sum(r["cases"][i]["passed"] for i in ids),
+                "passed": sum(r["cases"][i]["passed"] for i in ok_ids),
+                "scored": len(ok_ids),
                 "p50": round(statistics.median(lat), 1),
                 "p95": round(pct(lat, 0.95), 1),
             }
         )
     per_case = []
     for i in ids:
-        cs = [r["cases"][i] for r in runs]
+        cs = valid[i]
         failed_checks = sorted(
             {
                 f"{k}: {v['detail'][:120]}"
@@ -83,6 +95,7 @@ def analyse(runs: list[dict[str, Any]]) -> dict[str, Any]:
             {
                 "id": i,
                 "category": cs[0].get("category", ""),
+                "trials": len(cs),
                 "passes": sum(c["passed"] for c in cs),
                 "failed_checks": failed_checks,
                 "tools_stable": len(tool_sets) == 1,
@@ -91,17 +104,17 @@ def analyse(runs: list[dict[str, Any]]) -> dict[str, Any]:
                 "latency_spread_s": round(max(lat) - min(lat), 1),
             }
         )
-    k, n = len(runs), len(ids)
-    trials = k * n
+    trials = sum(c["trials"] for c in per_case)
     return {
         "runs": per_run,
         "cases": per_case,
-        "k": k,
-        "n": n,
-        "excluded": excluded,
+        "k": len(runs),
+        "n": len(ids),
+        "trials": trials,
+        "excluded": excluded_trials,
         "pass_at_1": sum(c["passes"] for c in per_case) / trials if trials else 0.0,
-        "pass_all_k": sum(c["passes"] == k for c in per_case),
-        "flaky": [c for c in per_case if 0 < c["passes"] < k],
+        "pass_all_k": sum(c["passes"] == c["trials"] for c in per_case),
+        "flaky": [c for c in per_case if 0 < c["passes"] < c["trials"]],
         "never": [c for c in per_case if c["passes"] == 0],
         "tools_unstable": [c for c in per_case if not c["tools_stable"]],
         "chart_varies": [c["id"] for c in per_case if c["chart_varies"]],
@@ -120,15 +133,15 @@ def render(a: dict[str, Any]) -> str:
         "|---|---|---|---|",
     ]
     out += [
-        f"| `{r['run_id']}` | {r['passed']} / {n} | {r['p50']} s | {r['p95']} s |"
+        f"| `{r['run_id']}` | {r['passed']} / {r['scored']} | {r['p50']} s | {r['p95']} s |"
         for r in a["runs"]
     ]
     out += [
         "",
-        f"- **Excluded (a run failed before reaching the model: AI credits exhausted):** "
-        f"{len(a['excluded'])} cases{' (' + ', '.join(a['excluded']) + ')' if a['excluded'] else ''}",
-        f"- **Mean pass rate (pass@1):** {a['pass_at_1']:.1%} of {k * n} case runs",
-        f"- **Passed in every run (pass^{k}):** {a['pass_all_k']} of {n} cases",
+        f"- **Trials excluded (failed before reaching the model: AI credits exhausted):** "
+        f"{len(a['excluded'])}{' (' + '; '.join(a['excluded']) + ')' if a['excluded'] else ''}",
+        f"- **Mean pass rate (pass@1):** {a['pass_at_1']:.1%} of {a['trials']} scored case runs",
+        f"- **Passed in every scored run:** {a['pass_all_k']} of {n} cases",
         f"- **Flaky (passed in some runs):** {len(a['flaky'])}",
         f"- **Failed in every run:** {len(a['never'])}",
         f"- **Governed-tool routing changed between runs:** {len(a['tools_unstable'])} cases",
@@ -142,7 +155,7 @@ def render(a: dict[str, Any]) -> str:
     if not bad:
         out.append("None.")
     for c in bad:
-        out.append(f"### {c['id']} ({c['category']}): {c['passes']} of {k}")
+        out.append(f"### {c['id']} ({c['category']}): {c['passes']} of {c['trials']}")
         out += [f"- {f}" for f in c["failed_checks"]]
         out.append("")
     out += ["", "## Governed-tool routing that changed between runs", ""]
@@ -150,7 +163,9 @@ def render(a: dict[str, Any]) -> str:
         out.append("None: every case used the same governed tools in every run.")
     for c in a["tools_unstable"]:
         sets = "; ".join("[" + ", ".join(t) + "]" for t in c["tool_sets"])
-        out.append(f"- **{c['id']}** ({c['category']}, {c['passes']} of {k} passed): {sets}")
+        out.append(
+            f"- **{c['id']}** ({c['category']}, {c['passes']} of {c['trials']} passed): {sets}"
+        )
     out += ["", "## Per-case latency spread (max minus min across runs)", ""]
     spreads = sorted(a["cases"], key=lambda c: -c["latency_spread_s"])[:5]
     out += [f"- {c['id']}: {c['latency_spread_s']} s" for c in spreads]
