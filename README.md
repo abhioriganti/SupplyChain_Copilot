@@ -47,7 +47,7 @@ flowchart LR
     AG <-->|"REST, streamed · least-privilege user"| UI["Streamlit UI"]
     UI --> N8N["n8n approval<br/>+ Slack notify"] --> API["Incident API"] --> LOG["Append-only,<br/>hash-chained audit log"]
 ```
-The full diagram, with security, evaluation and cost controls and a step-by-step request flow, is in **[docs/architecture.md](docs/architecture.md)**. Every design decision is recorded with its alternatives and tradeoffs in [docs/architecture_decisions.md](docs/architecture_decisions.md) (ADR-001 to ADR-027).
+The full diagram, with security, evaluation and cost controls and a step-by-step request flow, is in **[docs/architecture.md](docs/architecture.md)**. Every design decision is recorded with its alternatives and tradeoffs in [docs/architecture_decisions.md](docs/architecture_decisions.md) (ADR-001 to ADR-031).
 
 ## 4. Technology stack
 | Layer | Choice | Why |
