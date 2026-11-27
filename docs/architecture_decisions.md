@@ -490,3 +490,39 @@ All 8 incidents in the log were anchored and matched afterwards.
 - Give the judge tables in their original structure instead of flattened text.
 - Plant subtler errors (wrong page, reversed comparison).
 - Measure agreement with an independent human reviewer (backlog #5).
+
+## ADR-032: Late-delivery risk model in the Snowflake Model Registry, judged against rule baselines
+**Status:** Accepted (2026-11-27)
+**Context:** the role covers predictive models, Snowpark and the Model Registry, which the project didn't. DataCo's late flag is a known prediction task, but profiling suggested it depends almost only on the shipping mode.
+**Decision:**
+- **Leak-free features.** `SCC_DB.ML.V_LATE_RISK_FEATURES` holds only what is known when the order is placed: shipping mode, market, region, segment, payment type, weekday, hour, month, lines, units and order value. Actual shipping days, shipping date, delivery status, days late and order status are excluded, and tests enforce it.
+- **Baselines first.** Every model is compared with the overall rate, a shipping-mode lookup, and (after the importance check) a two-rule lookup: shipping mode plus a Same Day 12:00 cut-off. Two holdouts: a stratified random split, and the latest 20% of orders by date. An ablation drops SHIPPING_MODE.
+- **Train locally, serve in Snowflake.** scikit-learn on 62,897 rows trains in seconds on a laptop. The fitted pipeline is logged with `Registry.log_model` (target platform WAREHOUSE) as `SCC_DB.ML.LATE_DELIVERY_RISK` V1, and called from SQL with `MODEL(...)!PREDICT_PROBA`.
+- **Governed like any object.** The app role gets USAGE on the model and nothing on the feature view or Gold, so it can score what-if inputs but can't read training rows (checked live).
+
+**Result:**
+- Gradient boosting reached ROC AUC 0.768 (random) and 0.777 (time), against 0.738 and 0.744 for the shipping-mode lookup.
+- Permutation importance put almost all of the extra signal in ORDER_HOUR. The cause: **Same Day orders placed before 12:00 are never late, and those from 12:00 on always are**, in every hour bucket.
+- The two-rule lookup scores 0.773 / 0.776, so the model is within 0.005 AUC of it. Without SHIPPING_MODE the model falls to 0.53.
+- SQL inference equals local predictions on 200 of 200 rows (maximum difference 0.0).
+
+**So:** the model is honest but adds nothing beyond two rules, and the app says so next to every prediction. Its value here is the pattern (features in SQL, registry, grants, SQL inference, parity check), not the accuracy. On real data with carrier, plant and supplier fields, the same pipeline could find real signal.
+
+**Alternatives considered:**
+- *`snowflake.ml.modeling` estimators, training in the warehouse.* Supported, but for 63k rows it adds warehouse cost and no value.
+- *Snowflake Feature Store.* Worth it when several models share features; one view is enough for one model.
+- *A custom agent tool calling the model.* Documented (`generic` tool backed by a UDF or procedure), but it changes the agent and needs a full re-evaluation; left as a next step.
+- *Reporting only the gradient-boosting score.* It would have presented a +0.03 AUC "lift" that is one business rule.
+
+**Revisit:** with real ERP data (carrier, plant, supplier, lead times); add a registry alias and a monitoring view of prediction drift; the agent tool.
+
+## ADR-033: Microsoft Teams notifications evaluated; Slack kept
+**Status:** Not adopted (2026-11-27). The Slack addendum to ADR-027 stays in force.
+**Context:** Worthington works in Microsoft 365, so Teams would match the target environment better than Slack. Office 365 connector Incoming Webhooks were retired in May 2026; the replacement is a Teams Workflows (Power Automate) webhook trigger.
+**What was tried:** a Teams version of the two notification nodes was built (Adaptive Card 1.2 with an `Action.OpenUrl` button to the same n8n form, sent by a plain HTTP Request node). Both cards were checked in Node with sample values (valid JSON, about 1.2 KB) and the tests passed. Setting it up on the only available tenant (a university Microsoft 365 account) then failed:
+- Creating a team was not allowed, so the "Send webhook alerts to a channel" template had no channel to use.
+- In a custom workflow, the webhook trigger offered only "Any user in my tenant" or "Specific users in my tenant". There was no anonymous ("Anyone") option, so every call must carry an Entra ID token. n8n would need an Entra app registration to get one, which a student account can't create.
+
+**Decision:** keep Slack (tested live on 2026-11-26). The Teams code was not merged, so the repo holds no untested integration.
+**In a company tenant:** either allow the anonymous Workflows trigger (the signed URL is then the secret, as with Slack), or register an Entra app so n8n signs in. The approval, separation of duties and audit trail would not change, because the card only links to the n8n form.
+**Lesson:** check tenant policies before choosing an integration; the code was the easy part.

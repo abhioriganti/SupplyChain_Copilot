@@ -253,6 +253,25 @@ Runs: run 5, `eval-repeat2-20261127T001548` and `eval-repeat3-20261127T004652`.
 - Subtler errors (a wrong page number, or a reversed comparison) weren't planted.
 - The 40-row cap affected this run's saved evidence; later runs save 200 rows.
 
+## Late-delivery risk model (ADR-032): `docs/late_risk_model_report.md`
+62,897 eligible shipments; features known at order time only. Two holdouts: stratified random 80/20, and the latest 20% of orders by date (which also shifts the market mix).
+
+| Model | ROC AUC (random) | ROC AUC (time) | Log loss (random) |
+|---|---|---|---|
+| Overall late rate (no features) | 0.500 | 0.500 | 0.682 |
+| Shipping-mode lookup | 0.738 | 0.744 | 0.540 |
+| **Shipping mode + Same Day 12:00 cut-off (two rules)** | **0.773** | **0.776** | **0.502** |
+| Logistic regression | 0.743 | 0.752 | 0.539 |
+| Gradient boosting (registered) | 0.768 | 0.777 | 0.505 |
+| Gradient boosting without SHIPPING_MODE | 0.532 | 0.527 | 0.681 |
+
+**How the result was diagnosed:**
+- Gradient boosting first looked like a +0.03 AUC improvement on the shipping-mode lookup, on both holdouts.
+- Permutation importance put it in ORDER_HOUR. A query showed why: Same Day orders placed before 12:00 are late 0% of the time, and from 12:00 on 100%, with no exceptions. It's the "Same Day timestamps" quirk flagged in Phase 1.
+- A lookup with just those two rules scores the same as the model. Every other feature (market, region, segment, payment, weekday, month, order size and value) moves the late rate within a mode by only a few points, at noise level.
+
+**What this establishes:** the features don't leak (the order hour is known at order time, and a same-day cut-off is a real business rule), the registry and SQL inference work (200 of 200 rows identical), and the model's lift is fully explained. **It doesn't establish** that the model is useful: in DataCo, late delivery is effectively random within the shipping mode.
+
 ## Document-tier access probes (`evaluation/doc_tiers.py`): 7 of 7 as expected (ADR-029)
 Real Cortex Search REST queries as `SCC_APP_SVC`, switching only the role header. Each probe asks a supplier-manual question, so a leak would show.
 

@@ -86,6 +86,19 @@ class DashboardData:
             df["ORDER_MONTH"] = pd.to_datetime(df["ORDER_MONTH"])
         return df
 
+    def late_risk(self, inputs: dict) -> float:
+        """P(late) from the registered model (ADR-032), called as the runtime role. Values are
+        bound parameters; the role has USAGE on the model only, not on its training data."""
+        import json
+
+        from supplychain_copilot.ml.spec import FEATURES, POSITIVE_KEY, predict_sql
+
+        values = tuple(inputs[f] for f in FEATURES)
+        with self._session() as conn:
+            raw = query(conn, predict_sql(), values)[0]["P"]
+        obj = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        return float(obj[POSITIVE_KEY])
+
     def documents(self) -> pd.DataFrame:
         return self._df(
             "SELECT DOCUMENT_ID, DOCUMENT_TITLE, DOCUMENT_TYPE, DOCUMENT_VERSION, PUBLICATION_DATE, SOURCE_URL, "

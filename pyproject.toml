@@ -28,6 +28,11 @@ dev = [
     "pytest>=8,<9",
     "ruff>=0.6",
     "httpx>=0.27,<1",  # FastAPI TestClient
+    "scikit-learn>=1.5,<2",  # late-delivery risk model training/tests (ADR-032)
+]
+# Training + Snowflake Model Registry (not needed by the app or CI): pip install -e ".[ml]"
+ml = [
+    "snowflake-ml-python[scikit-learn]>=2.5,<3",
 ]
 
 [tool.setuptools.packages.find]

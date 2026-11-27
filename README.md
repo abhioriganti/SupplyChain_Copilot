@@ -32,6 +32,7 @@ The hardest questions need both: *"Where are we late, and what would the supplie
 | Document Q&A (RAG) | Cortex Search over 152 heading-aware chunks of 3 public PDFs | **hit@1 96.7%**, hit@5 100%, MRR 0.983 on 30 labelled questions; every chunk word verified to appear on its cited page |
 | Hybrid answers | One Cortex Agent with two tools; it routes by the evidence needed | Final evaluation **37 of 37** (run 5), with SQL ground truth |
 | Safety | Least-privilege runtime identity, grounded-answer rules, no self-computed numbers | 13 of 13 privilege probes; red-team **6 of 6** planted-instruction attacks resisted |
+| Predictive model | Late-delivery risk classifier (scikit-learn) on leak-free order-time features, logged to the **Snowflake Model Registry** and called from SQL as the least-privilege role | Matches a two-rule baseline (shipping mode + Same Day 12:00 cut-off) within 0.005 ROC AUC on random and time holdouts; SQL inference equals local predictions on 200 of 200 rows |
 | Human in the loop | n8n approval workflow with Slack notification and separation of duties (simulated) | Hash-chained audit log; tampering with the approver detected in SQL |
 | Transparency | Every answer shows the tools used, the latency, the SQL and its results, and the cited pages | Request log and monitoring view |
 
@@ -47,7 +48,7 @@ flowchart LR
     AG <-->|"REST, streamed · least-privilege user"| UI["Streamlit UI"]
     UI --> N8N["n8n approval<br/>+ Slack notify"] --> API["Incident API"] --> LOG["Append-only,<br/>hash-chained audit log"]
 ```
-The full diagram, with security, evaluation and cost controls and a step-by-step request flow, is in **[docs/architecture.md](docs/architecture.md)**. Every design decision is recorded with its alternatives and tradeoffs in [docs/architecture_decisions.md](docs/architecture_decisions.md) (ADR-001 to ADR-031).
+The full diagram, with security, evaluation and cost controls and a step-by-step request flow, is in **[docs/architecture.md](docs/architecture.md)**. Every design decision is recorded with its alternatives and tradeoffs in [docs/architecture_decisions.md](docs/architecture_decisions.md) (ADR-001 to ADR-033).
 
 ## 4. Technology stack
 | Layer | Choice | Why |
@@ -58,6 +59,7 @@ The full diagram, with security, evaluation and cost controls and a step-by-step
 | Retrieval | **Cortex Search** (arctic-embed-m-v1.5, hybrid + rerank) | Managed hybrid search with no separate vector database to secure |
 | Orchestration | **Cortex Agent** (model `auto`) | Tool routing and grounding rules in one governed object |
 | App | Streamlit 1.67 (local) | Fast to build, easy to test (`AppTest`) |
+| Predictive ML | scikit-learn, **Snowflake Model Registry** (`snowflake-ml-python`), SQL inference `MODEL(...)!PREDICT_PROBA` | Train where it's cheap, serve and govern in Snowflake with grants like any other object |
 | Automation | n8n 2.47.5 (Docker), FastAPI callback API, Slack incoming webhook | Human approval without giving the workflow tool database credentials |
 | Engineering | Python 3.12, pytest, Ruff, GitHub Actions (secret scan, lint, tests) | |
 
@@ -116,9 +118,10 @@ Details: [docs/agent_architecture.md](docs/agent_architecture.md)
 | Model A/B (orchestration) | Current model 37/37; claude-sonnet-5-5 25/37 with 11 semantic-view bypasses (all denied), so the current model is kept (ADR-028) |
 | Multi-turn conversations | 6 two-turn conversations, 12 of 12 turns (follow-ups, pronouns, topic switch, late injection); 5- and 6-turn conversations past the 3-pair history window, plus a lost-context case: 12 of 12 after review (asks "which market?" rather than guessing) |
 | Repeat runs (variance) | 3 runs × 37 cases: governed-tool routing identical, ground truth matched every time; 36 of 37 cases passed in every run, all 108 after one evaluator correction |
+| Late-delivery risk model | Gradient boosting ROC AUC 0.768 (random holdout) and 0.777 (time holdout) vs 0.738 / 0.744 for a shipping-mode lookup; the whole lift comes from a Same Day 12:00 order cut-off, and a two-rule baseline scores the same (0.773 / 0.776) |
 | LLM-as-judge (second signal) | Judge from a different vendor, given each answer's evidence: caught 27 of 27 planted errors; on clean answers it raised 16 flags in 37, which human review found to be 4 minor wording issues and 12 false alarms, so it triages rather than gates |
 | Document-tier access probes | 7 of 7: public tier denied the supplier corpus; a client filter shown not to be a boundary (ADR-029) |
-| Automated tests | 179 unit, UI and logic tests (CI) + 14 live Snowflake tests |
+| Automated tests | 194 unit, UI and logic tests (CI) + 14 live Snowflake tests |
 
 The full review, including what the evaluation **does not** establish, is in [docs/evaluation_findings.md](docs/evaluation_findings.md).
 
@@ -126,7 +129,7 @@ The full review, including what the evaluation **does not** establish, is in [do
 - **Least-privilege runtime identity.** The dedicated user `SCC_APP_SVC` uses `SCC_APP_ROLE`, with secondary roles disabled (it also holds the two search-only document-tier roles used by the access probes). The role:
   - **cannot read** Bronze, Silver or Gold tables
   - **cannot modify** any business data
-  - can only use the semantic view, the search service and the agent
+  - can only use the semantic view, the search service, the agent and the late-delivery risk model (USAGE on the model, no access to its training data)
   - can **INSERT** into three app log tables (feedback, request log, incident audit)
 
   A secondary-roles privilege leak was found and fixed in Phase 6 (ADR-021).

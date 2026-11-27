@@ -2,6 +2,18 @@
 
 **Interview:** 2026-12-08 · **Current phase:** 10, Final validation and interview preparation · **Status:** ✅ Phases 0–10 complete (2026-11-26).
 
+## Backlog pass 9: predictive model; Teams evaluated (2026-11-27)
+| Item | Evidence |
+|---|---|
+| Features | `sql/85_ml/01_late_risk_features.sql`: `SCC_DB.ML.V_LATE_RISK_FEATURES`, order-time columns only (62,897 rows); tests reject post-shipment columns |
+| Model | `ml/late_risk.py`: baselines, logistic regression, gradient boosting, ablation, two holdouts. Gradient boosting 0.768 / 0.777 ROC AUC vs a two-rule baseline 0.773 / 0.776: the lift is a Same Day 12:00 cut-off, found by permutation importance |
+| Registry | `SCC_DB.ML.LATE_DELIVERY_RISK` V1 via `Registry.log_model`; SQL `MODEL(...)!PREDICT_PROBA` equals local predictions on 200 of 200 rows |
+| Access | `sql/85_ml/02_late_risk_model_grants.sql`: app role has USAGE on the model only; reading the feature view as the app role is denied (checked live) |
+| App | Dashboard "Late-delivery risk" card; live check: Same Day 10:00 → 2%, 15:00 → 99% (governed Same Day rate 48%) |
+| Teams | Evaluated and not adopted (ADR-033): the Adaptive Card version worked in tests, but the university tenant allows only signed-in webhook triggers. Slack stays; the Teams code was reverted. |
+| Cost | Warehouse only (seconds of X-Small for features, registration and inference); no Cortex calls |
+| Tests | 194 CI tests pass; Ruff clean; secret scan OK |
+
 ## Backlog pass 8: LLM-as-judge groundedness (2026-11-27)
 | Item | Evidence |
 |---|---|

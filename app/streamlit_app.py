@@ -17,7 +17,7 @@ from supplychain_copilot.agent.client import AgentAnswer, CopilotAgent
 from supplychain_copilot.incidents.service import IncidentService, copilot_drafter
 from supplychain_copilot.incidents.store import SnowflakeIncidentStore
 from supplychain_copilot.observability import build_log_record, log_request
-from supplychain_copilot.ui import charts, components
+from supplychain_copilot.ui import charts, components, risk
 from supplychain_copilot.ui import incidents as incidents_ui
 from supplychain_copilot.ui.cache import AnswerCache
 from supplychain_copilot.ui.citations import build_sources
@@ -276,6 +276,9 @@ with tab_dash:
                 "reflect market mix, not operational change. Gaps mean the market is absent; "
                 "market-months with fewer than 100 eligible shipments are hidden."
             )
+        if hasattr(services().data, "late_risk"):
+            with st.container(border=True, key="card_risk"):
+                risk.risk_card(services().data, dashboard["regions"], dashboard["modes"])
 
 with tab_sources, st.container(border=True, key="card_sources"):
     st.markdown("#### Indexed public documents")
