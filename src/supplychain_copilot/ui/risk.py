@@ -68,10 +68,22 @@ def risk_card(data, regions: pd.DataFrame, modes: pd.DataFrame) -> None:
         inputs = build_inputs(
             mode, market, region, segment, payment, weekday, hour, month, lines, units, value
         )
-        try:
-            st.session_state.risk_result = (inputs, data.late_risk(inputs))
-        except Exception:
-            st.session_state.risk_result = (inputs, None)
+        # Warehouse inference is slow (about 15 s; up to 2 minutes on a cold warehouse), so show
+        # progress and remember answers for inputs already predicted in this session.
+        cache = st.session_state.setdefault("risk_cache", {})
+        key = tuple(sorted(inputs.items()))
+        if key not in cache:
+            try:
+                with st.spinner(
+                    "Running the model in Snowflake… about 15 seconds, up to 2 minutes if the "
+                    "warehouse was asleep."
+                ):
+                    cache[key] = data.late_risk(inputs)
+            except Exception:
+                cache.pop(key, None)
+                st.session_state.risk_result = (inputs, None)
+        if key in cache:
+            st.session_state.risk_result = (inputs, cache[key])
 
     result = st.session_state.get("risk_result")
     if result:

@@ -239,6 +239,20 @@ def test_location_options_only_offer_real_market_region_pairs():
     assert (data.inputs["MARKET"], data.inputs["ORDER_REGION"]) == ("Africa", "Central Africa")
 
 
+def test_repeat_prediction_with_same_inputs_is_reused():
+    calls = []
+
+    class Counting(FakeRiskData):
+        def late_risk(self, inputs):
+            calls.append(inputs)
+            return 0.3
+
+    at = _predict(Counting())
+    next(b for b in at.button if "Predict late-delivery risk" in b.label).click().run()
+    assert len(calls) == 1
+    assert {m.label: m.value for m in at.metric}["Predicted late-delivery risk"] == "30%"
+
+
 def test_risk_card_failure_is_friendly():
     at = _predict(FakeRiskData(fail=True))
     assert not at.exception

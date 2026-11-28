@@ -9,7 +9,7 @@
 | Model | `ml/late_risk.py`: baselines, logistic regression, gradient boosting, ablation, two holdouts. Gradient boosting 0.768 / 0.777 ROC AUC vs a two-rule baseline 0.773 / 0.776: the lift is a Same Day 12:00 cut-off, found by permutation importance |
 | Registry | `SCC_DB.ML.LATE_DELIVERY_RISK` V1 via `Registry.log_model`; SQL `MODEL(...)!PREDICT_PROBA` equals local predictions on 200 of 200 rows |
 | Access | `sql/85_ml/02_late_risk_model_grants.sql`: app role has USAGE on the model only; reading the feature view as the app role is denied (checked live) |
-| App | Dashboard "Late-delivery risk" card; live check: Same Day 10:00 → 2%, 15:00 → 99% (governed Same Day rate 48%) |
+| App | Dashboard "Late-delivery risk" card; live check: Same Day 10:00 → 2%, 15:00 → 99% (governed Same Day rate 48%). Latency: first call 118 s on a cold warehouse, then about 15 s per prediction, so the card shows a spinner and reuses answers for repeated inputs |
 | Teams | Evaluated and not adopted (ADR-033): the Adaptive Card version worked in tests, but the university tenant allows only signed-in webhook triggers. Slack stays; the Teams code was reverted. |
 | Cost | Warehouse only (seconds of X-Small for features, registration and inference); no Cortex calls |
 | Tests | 194 CI tests pass; Ruff clean; secret scan OK |
